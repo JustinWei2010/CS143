@@ -1,4 +1,4 @@
 CS143
 =====
 
-class
+careful about the CRLF issues going to have to use dos2unix
