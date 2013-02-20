@@ -103,14 +103,7 @@ RC BTNonLeafNode::read(PageId pid, const PageFile& pf){
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTNonLeafNode::write(PageId pid, PageFile& pf){ 
-	RC errorCode = pf.write(pid, buffer);
-	if (errorCode == 0){
-		tupleCount++;
-		return errorCode;
-	}
-	else {
-		return errorCode;
-	}
+	return pf.write(pid, buffer);
 }
 
 /*
