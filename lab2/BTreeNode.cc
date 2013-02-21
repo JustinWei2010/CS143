@@ -49,8 +49,7 @@ int BTLeafNode::getKeyCount()
  */
 RC BTLeafNode::insert(int key, const RecordId& rid)
 { 
-	if(tupleCount < MAX_LEAF_RECORDS)
-	{
+	if(tupleCount < MAX_LEAF_RECORDS){
 		RC rc;
 		int eid;
 		rc = locate(key, eid);
