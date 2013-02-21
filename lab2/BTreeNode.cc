@@ -5,7 +5,7 @@ using namespace std;
 //Initialize private variables
 BTLeafNode::BTLeafNode()
 {
-	numKeys = 0;
+	tupleCount = 0;
 	//Set every value in buffer to 0. This makes it easier mplementing cases where no keys exist.
 	memset(buffer, 0, PageFile::PAGE_SIZE);
 }
@@ -38,7 +38,7 @@ RC BTLeafNode::write(PageId pid, PageFile& pf)
  */
 int BTLeafNode::getKeyCount()
 { 
-	return numKeys; 
+	return tupleCount; 
 }
 
 /*
@@ -49,7 +49,7 @@ int BTLeafNode::getKeyCount()
  */
 RC BTLeafNode::insert(int key, const RecordId& rid)
 { 
-	if(numKeys < MAX_LEAF_RECORDS)
+	if(tupleCount < MAX_LEAF_RECORDS)
 	{
 		RC rc;
 		int eid;
@@ -57,7 +57,7 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 		if(rc == 0){
 			int offset = (sizeof(RecordId) + sizeof(int))*eid;
 			//Create a temporary buffer that stores all tuples that have to be shifted
-			int shiftSize = (sizeof(RecordId) + sizeof(int))*(numKeys - eid);
+			int shiftSize = (sizeof(RecordId) + sizeof(int))*(tupleCount - eid);
 			char *tempBuffer = (char *)malloc(shiftSize * sizeof(char));
 			memcpy(tempBuffer, buffer + offset, shiftSize);
 			//Insert new tuple
@@ -65,7 +65,7 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 			memcpy(buffer + offset + sizeof(RecordId), &key, sizeof(int));
 			//Shift the tuples after insert
 			memcpy(buffer + offset + sizeof(RecordId) + sizeof(int), tempBuffer, shiftSize);
-			numKeys++;
+			tupleCount++;
 			free(tempBuffer);
 			return 0;
 		}
@@ -87,9 +87,9 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 RC BTLeafNode::insertAndSplit(int key, const RecordId& rid, 
                               BTLeafNode& sibling, int& siblingKey)
 {
-	if(numKeys == MAX_LEAF_RECORDS){
+	if(tupleCount == MAX_LEAF_RECORDS){
 		//The sibling node will have the same number of records in case of odd MAX_LEAF_RECORDS, less if even
-		for(int eid=MAX_LEAF_RECORDS/2; eid < numKeys; eid++){
+		for(int eid=MAX_LEAF_RECORDS/2; eid < tupleCount; eid++){
 			int key;
 			RecordId rid;
 			readEntry(eid, key, rid);
@@ -106,7 +106,7 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 		memset(buffer + offset, 0, PageFile::PAGE_SIZE-offset);
 		
 		//Set new key count and next node ptr
-		numKeys = MAX_LEAF_RECORDS/2 + 1;
+		tupleCount = MAX_LEAF_RECORDS/2 + 1;
 		sibling.setNextNodePtr(currentNextPid);
 		
 		//How to set pageid of next node to point to sibling though?
@@ -148,7 +148,7 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 RC BTLeafNode::readEntry(int eid, int& key, RecordId& rid)
 {
 	//eid starts at 0, 27 is max value
-	if(eid < numKeys){
+	if(eid < tupleCount){
 		int offset = (sizeof(int) + sizeof(RecordId))*eid;
 		memcpy(&rid, buffer + offset, sizeof(RecordId));
 		memcpy(&key, buffer + offset + sizeof(RecordId), sizeof(int));
@@ -215,7 +215,9 @@ RC BTNonLeafNode::write(PageId pid, PageFile& pf)
  * @return the number of keys in the node
  */
 int BTNonLeafNode::getKeyCount()
-{ return 0; }
+{ 
+	return tupleCount; 
+}
 
 
 /*

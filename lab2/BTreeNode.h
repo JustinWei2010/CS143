@@ -108,7 +108,7 @@ class BTLeafNode {
     * that contains the node.
     */
     char buffer[PageFile::PAGE_SIZE];
-	int numKeys;
+	int tupleCount;
 }; 
 
 
@@ -191,6 +191,7 @@ class BTNonLeafNode {
     * that contains the node.
     */
     char buffer[PageFile::PAGE_SIZE];
+	int tupleCount;
 }; 
 
 #endif /* BTNODE_H */
