@@ -194,8 +194,7 @@ BTNonLeafNode::BTNonLeafNode()
  * @param pf[IN] PageFile to read from
  * @return 0 if successful. Return an error code if there is an error.
  */
-RC BTNonLeafNode::read(PageId pid, const PageFile& pf)
-{ 
+RC BTNonLeafNode::read(PageId pid, const PageFile& pf){
 	return pf.read(pid, buffer); 
 }
     
@@ -205,9 +204,8 @@ RC BTNonLeafNode::read(PageId pid, const PageFile& pf)
  * @param pf[IN] PageFile to write to
  * @return 0 if successful. Return an error code if there is an error.
  */
-RC BTNonLeafNode::write(PageId pid, PageFile& pf)
-{
-	return pf.write(pid, buffer); 
+RC BTNonLeafNode::write(PageId pid, PageFile& pf){ 
+	return pf.write(pid, buffer);
 }
 
 /*
@@ -215,9 +213,7 @@ RC BTNonLeafNode::write(PageId pid, PageFile& pf)
  * @return the number of keys in the node
  */
 int BTNonLeafNode::getKeyCount()
-{ 
-	return tupleCount; 
-}
+{ return tupleCount; }
 
 
 /*
