@@ -15,6 +15,8 @@
 
 //Max to fulfill test cases
 const int MAX_LEAF_RECORDS = 28;
+//Size of variables inserted into buffer
+const int keyPageComponentSize = (sizeof(PageId) + sizeof(int)) //basic size of PageId + int
 
 /**
  * BTLeafNode: The class representing a B+tree leaf node.

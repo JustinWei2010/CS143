@@ -87,7 +87,7 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 		}
 	}
 	//Full node
-	return -1; 
+	return -1010; 
 }
 
 /*
@@ -205,7 +205,9 @@ RC BTLeafNode::setNextNodePtr(PageId pid)
 
 BTNonLeafNode::BTNonLeafNode()
 {
+	tupleCount = 0;
 	memset(buffer, 0, PageFile::PAGE_SIZE);
+	//implement last node pointer
 }
 
 /*
@@ -247,7 +249,24 @@ int BTNonLeafNode::getKeyCount()
  * @return 0 if successful. Return an error code if the node is full.
  */
 RC BTNonLeafNode::insert(int key, PageId pid)
-{ return 0; }
+{
+	int pid;
+	RC errorCode = locateChildPtr(key, pid);
+	//report any errors
+	if (errorCode != 0)
+		return errorCode;
+	if(tupleCount >= MAX_LEAF_RECORDS){
+		return -1010;
+	}
+	//shift old info
+	memmove(buffer + (keyPageComponentSize*(pid+1)), buffer + (keyPageComponentSize*pid), buffer + (keyPageComponentSize*(tupleCount - pid)));
+	//insert new info
+	memcpy(buffer + (keyPageComponentSize*pid), &pid, sizeof(RecordId);
+	memcpy(buffer + (keyPageComponentSize*pid) + sizeof(RecordId), &key, sizeof(int));
+	tupleCount++;
+	return 0;
+	
+}
 
 /*
  * Insert the (key, pid) pair to the node
