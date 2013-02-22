@@ -1,4 +1,5 @@
 #include "BTreeNode.h"
+#include <iostream> //testing
 
 using namespace std;
 
@@ -8,6 +9,22 @@ BTLeafNode::BTLeafNode()
 	tupleCount = 0;
 	//Set every value in buffer to 0. This makes it easier mplementing cases where no keys exist.
 	memset(buffer, 0, PageFile::PAGE_SIZE);
+}
+
+//Testing
+void BTLeafNode::print()
+{
+	printf("numKeys: %d\n", tupleCount);
+	for(int eid = 0; eid < tupleCount; eid++){
+		int key;
+		RecordId rid;
+		int offset = (sizeof(int) + sizeof(RecordId))*eid;
+		memcpy(&rid, buffer + offset, sizeof(RecordId));
+		memcpy(&key, buffer + offset + sizeof(RecordId), sizeof(int));
+		printf("key: %d, page: %d, record: %d\n", key, rid.pid, rid.sid);
+	}
+	printf("next: %d\n", getNextNodePtr());
+	return;
 }
 
 /*
@@ -99,14 +116,17 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 			}
 		}
 		
-		//Delete tuples from the original node and save current next node's pid
+		//Delete tuples from the original node
 		PageId currentNextPid = getNextNodePtr();
 		int offset = (MAX_LEAF_RECORDS/2)*(sizeof(RecordId) + sizeof(int));
 		memset(buffer + offset, 0, PageFile::PAGE_SIZE-offset);
 		
 		//Set new key count and next node ptr
-		tupleCount = MAX_LEAF_RECORDS/2 + 1;
+		tupleCount = MAX_LEAF_RECORDS/2;
 		sibling.setNextNodePtr(currentNextPid);
+		
+		//Insert new node
+		insert(key, rid);
 		
 		//How to set pageid of next node to point to sibling though?
 		
@@ -129,9 +149,11 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 		int key;
 		int offset = (sizeof(int) + sizeof(RecordId))*eid;
 		memcpy(&key, buffer + offset + sizeof(RecordId), sizeof(int));
-		if(key >= searchKey)
+		//assume that no keys added can be 0
+		if(key >= searchKey || key == 0)
 			return 0;
 	}
+	
 	//All keys are smaller than searchKey
 	eid = -1;
 	return -1;
@@ -175,7 +197,6 @@ PageId BTLeafNode::getNextNodePtr()
 RC BTLeafNode::setNextNodePtr(PageId pid)
 { 
 	if(pid >= 0){
-		PageId pid;
 		memcpy(buffer+PageFile::PAGE_SIZE-sizeof(PageId), &pid, sizeof(PageId));
 		return 0; 
 	}

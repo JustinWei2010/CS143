@@ -24,6 +24,9 @@ class BTLeafNode {
     //Constructor
 	BTLeafNode();
 	
+	//Testing
+	void print();
+	
    /**
     * Insert the (key, rid) pair to the node.
     * Remember that all keys inside a B+tree node should be kept sorted.

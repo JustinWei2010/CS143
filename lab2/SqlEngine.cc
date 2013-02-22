@@ -12,6 +12,7 @@
 #include <fstream>
 #include "Bruinbase.h"
 #include "SqlEngine.h"
+#include "BTreeNode.h" //added for testing
 
 using namespace std;
 
@@ -23,7 +24,23 @@ int sqlparse(void);
 RC SqlEngine::run(FILE* commandline)
 {
   fprintf(stdout, "Bruinbase> ");
-
+  /*
+  BTLeafNode node;
+  BTLeafNode sibling;
+  int sibKey;
+  RecordId rid;
+  PageId pid;
+  rid.pid = 0;
+  rid.sid = 2;
+  pid = 2;
+  node.setNextNodePtr(pid);
+  node.insert(3, rid);
+  node.insert(1, rid);
+  node.insert(4, rid);
+  node.print();
+  sibling.print();
+  */
+  
   // set the command line input and start parsing user input
   sqlin = commandline;
   sqlparse();  // sqlparse() is defined in SqlParser.tab.c generated from
