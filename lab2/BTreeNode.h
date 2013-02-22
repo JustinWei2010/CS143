@@ -173,6 +173,18 @@ class BTNonLeafNode {
     * @return the number of keys in the node
     */
     int getKeyCount();
+   
+   /**
+    * Change the counter stating the number of keys stored in a node.
+    * @update tupleCount
+    */
+	void changeKeyCount(const int& newKeyCount)
+	
+   /**
+    * Return the pointer to the node's buffer.
+    * @return the pointer to the node's buffer
+    */
+    char* getBufferPointer();
 
    /**
     * Read the content of the node from the page pid in the PageFile pf.

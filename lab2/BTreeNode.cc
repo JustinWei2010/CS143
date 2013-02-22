@@ -241,6 +241,23 @@ int BTNonLeafNode::getKeyCount()
 	return tupleCount; 
 }
 
+/*
+* Change the counter stating the number of keys stored in a node.
+* @update tupleCount
+*/
+void changeKeyCount(const int& newKeyCount)
+{
+	tupleCount = newKeyCount;
+}
+
+/*
+* Return the pointer to the node's buffer.
+* @return the pointer to the node's buffer
+*/
+char* getBufferPointer()
+{
+	return &(buffer[0]);
+}
 
 /*
  * Insert a (key, pid) pair to the node.
@@ -250,8 +267,8 @@ int BTNonLeafNode::getKeyCount()
  */
 RC BTNonLeafNode::insert(int key, PageId pid)
 {
-	int pid;
-	RC errorCode = locateChildPtr(key, pid);
+	int cid;
+	RC errorCode = locateChildPtr(key, cid);
 	//report any errors
 	if (errorCode != 0)
 		return errorCode;
@@ -259,10 +276,10 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 		return -1010;
 	}
 	//shift old info
-	memmove(buffer + (keyPageComponentSize*(pid+1)), buffer + (keyPageComponentSize*pid), buffer + (keyPageComponentSize*(tupleCount - pid)));
+	memmove(buffer + (keyPageComponentSize*(cid+1)), buffer + (keyPageComponentSize*cid), buffer + (keyPageComponentSize*(tupleCount - cid)));
 	//insert new info
-	memcpy(buffer + (keyPageComponentSize*pid), &pid, sizeof(RecordId);
-	memcpy(buffer + (keyPageComponentSize*pid) + sizeof(RecordId), &key, sizeof(int));
+	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId);
+	memcpy(buffer + (keyPageComponentSize*cid) + sizeof(PageId), &key, sizeof(int));
 	tupleCount++;
 	return 0;
 	
@@ -279,7 +296,30 @@ RC BTNonLeafNode::insert(int key, PageId pid)
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
-{ return 0; }
+{
+	
+	int cid;
+	RC errorCode = locateChildPtr(key, cid);
+	if (errorCode != 0)
+		return errorCode;
+	//split
+	//make sure sibling node is empty (not sure how to do)
+	char* siblingBuffer = sibling.getBufferPointer()
+	int numberOfCopiedTuples = MAX_LEAF_RECORDS/2;
+	//move (smaller) half of the tuples into the sibling buffer and then make sure the original node is clean
+	memmove(siblingBuffer, buffer + (keyPageComponentSize*(MAX_LEAF_RECORDS - numberOfCopiedTuples)), buffer + (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
+	memset(buffer + (keyPageComponentSize*(MAX_LEAF_RECORDS - numberOfCopiedTuples)),0, buffer + (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
+	//update key count for both nodes
+	changeKeyCount(MAX_LEAF_RECORDS - numberOfCopiedTuples);
+	sibling.changeKeyCount(numberOfCopiedTuples);
+	//what to do about the pointer at the end of the original array
+	//insert the new child pointer
+	if (cid < (MAX_LEAF_RECORDS - numberOfCopiedTuples))
+		errorCode = insert(key, pid);
+	else
+		errorCode = sibling.insert(key, pid);
+	return errorCode;
+}
 
 /*
  * Given the searchKey, find the child-node pointer to follow and
