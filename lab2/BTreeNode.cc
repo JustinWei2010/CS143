@@ -297,7 +297,6 @@ RC BTNonLeafNode::insert(int key, PageId pid)
  */
 RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
 {
-	
 	int cid;
 	RC errorCode = locateChildPtr(key, cid);
 	if (errorCode != 0)
@@ -329,7 +328,23 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
  * @return 0 if successful. Return an error code if there is an error.
  */
 RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
-{ return 0; }
+{ 	
+	//tbh, not sure what errors I should check for here
+	for(int id=0; id<MAX_LEAF_RECORDS; id++){
+		int key;
+		memcpy(&key, buffer + (keyPageComponentSize*id) + sizeof(PageId), sizeof(int));
+		//assume that no keys added can be 0
+		if(key >= searchKey || key == 0)
+		{
+			pid = buffer + (keyPageComponentSize*id);
+			return 0;
+		}
+	}
+	
+	//if it is not smaller than any of the other nodes, return the last node
+	pid = buffer + (keyPageComponentSize*MAX_LEAF_RECORDS);
+	return 0; 
+}
 
 /*
  * Initialize the root node with (pid1, key, pid2).
