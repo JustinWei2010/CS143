@@ -205,8 +205,6 @@ BTNonLeafNode::BTNonLeafNode()
 {
 	tupleCount = 0;
 	memset(buffer, 0, PageFile::PAGE_SIZE);
-	
-	//implement last node pointer
 }
 
 /*
@@ -277,7 +275,6 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 	}
 	
 	//shift old info
-	//I removed buffer + from 3rd element
 	memmove(buffer + (keyPageComponentSize*(cid+1)), buffer + (keyPageComponentSize*cid), (keyPageComponentSize*(tupleCount - cid)));
 	//insert new info
 	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId));
@@ -318,7 +315,6 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 	tupleCount++;
 	
 	//move (smaller) half of the tuples into the sibling buffer and then make sure the original node is clean
-	//removed buffer + from 3rd paramter, think that fixes it
 	memmove(siblingBuffer, buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),(keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
 	memset(buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),0, (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
 	
@@ -354,14 +350,12 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 		memcpy(&key, buffer + (keyPageComponentSize*id) + sizeof(PageId), sizeof(int));
 		//assume that no keys added can be 0
 		if(key >= searchKey || key == 0){
-			//Fix: changed your line here, think it fixes it
 			memcpy(&pid, buffer + (keyPageComponentSize*id), sizeof(PageId));
 			return 0;
 		}
 	}
 
 	//if it is not smaller than any of the other nodes, return the last node
-	//Fix: changed your line here, think it fixes it
 	memcpy(&pid, buffer + (keyPageComponentSize*MAX_LEAF_RECORDS), sizeof(PageId));
 	return 0;
 }
