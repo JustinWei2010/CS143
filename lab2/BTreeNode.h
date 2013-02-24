@@ -14,7 +14,7 @@
 #include "PageFile.h"
 
 //Max to fulfill test cases
-const int MAX_LEAF_RECORDS = 28;
+const int MAX_LEAF_RECORDS = 60;
 //Size of variables inserted into buffer
 const int keyPageComponentSize = (sizeof(PageId) + sizeof(int)) //basic size of PageId + int
 

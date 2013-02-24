@@ -297,21 +297,33 @@ RC BTNonLeafNode::insert(int key, PageId pid)
  */
 RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
 {
+	//declare variables
 	int cid;
 	RC errorCode = locateChildPtr(key, cid);
+	char* siblingBuffer = sibling.getBufferPointer()
+	int numberOfCopiedTuples = (MAX_LEAF_RECORDS+1)/2;
 	if (errorCode != 0)
 		return errorCode;
 	//split
-	//make sure sibling node is empty (not sure how to do)
-	char* siblingBuffer = sibling.getBufferPointer()
-	int numberOfCopiedTuples = MAX_LEAF_RECORDS/2;
+	//make sure sibling node is empty (since constructor makes all values 0, we should be able to safely check if all values are 0
+	for (int i = 0; i < PageFile::PAGE_SIZE ; i++)
+	{
+		if (&(siblingBuffer + i) != 0)
+			return -1; //no idea what error message is supposed to be here
+	}
+	//insert new tuple and create overflow
+	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId);
+	memcpy(buffer + (keyPageComponentSize*cid) + sizeof(PageId), &key, sizeof(int));
+	tupleCount++;
 	//move (smaller) half of the tuples into the sibling buffer and then make sure the original node is clean
-	memmove(siblingBuffer, buffer + (keyPageComponentSize*(MAX_LEAF_RECORDS - numberOfCopiedTuples)), buffer + (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
-	memset(buffer + (keyPageComponentSize*(MAX_LEAF_RECORDS - numberOfCopiedTuples)),0, buffer + (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
+	memmove(siblingBuffer, buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)), buffer + (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
+	memset(buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),0, (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
+	//get midKey and remove that key
+	memcpy(&midKey, buffer + (keyPageComponentSize*(MAX_LEAF_RECORDS - numberOfCopiedTuples - 1)) + sizeof(PageId), sizeof(int));
+	memset(buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),0, sizeof(int));
 	//update key count for both nodes
-	changeKeyCount(MAX_LEAF_RECORDS - numberOfCopiedTuples);
+	changeKeyCount(MAX_LEAF_RECORDS - numberOfCopiedTuples - 1);
 	sibling.changeKeyCount(numberOfCopiedTuples);
-	//what to do about the pointer at the end of the original array
 	//insert the new child pointer
 	if (cid < (MAX_LEAF_RECORDS - numberOfCopiedTuples))
 		errorCode = insert(key, pid);
