@@ -17,6 +17,7 @@
 const int MAX_LEAF_RECORDS = 60;
 //Size of variables inserted into buffer
 const int keyPageComponentSize = (sizeof(PageId) + sizeof(int)); //basic size of PageId + int
+const int keyRecordComponentSize = (sizeof(RecordId) + sizeof(int));
 
 /**
  * BTLeafNode: The class representing a B+tree leaf node.
@@ -125,6 +126,9 @@ class BTNonLeafNode {
   public:
     //Constructor
 	BTNonLeafNode();
+	
+	//Testing
+	void print();
 	
    /**
     * Insert a (key, pid) pair to the node.

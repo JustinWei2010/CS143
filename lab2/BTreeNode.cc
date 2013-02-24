@@ -71,22 +71,21 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 		if(rc == 0){
 			int offset = (sizeof(RecordId) + sizeof(int))*eid;
 			//Create a temporary buffer that stores all tuples that have to be shifted
-			int shiftSize = (sizeof(RecordId) + sizeof(int))*(tupleCount - eid);
+			int shiftSize = (keyRecordComponentSize)*(tupleCount - eid);
 			char *tempBuffer = (char *)malloc(shiftSize * sizeof(char));
 			memcpy(tempBuffer, buffer + offset, shiftSize);
 			//Insert new tuple
 			memcpy(buffer + offset, &rid, sizeof(RecordId));
 			memcpy(buffer + offset + sizeof(RecordId), &key, sizeof(int));
 			//Shift the tuples after insert
-			memcpy(buffer + offset + sizeof(RecordId) + sizeof(int), tempBuffer, shiftSize);
+			memcpy(buffer + offset + keyRecordComponentSize, tempBuffer, shiftSize);
 			tupleCount++;
 			free(tempBuffer);
-		//fixed: return the correct error code if insert has an error
-		return rc;
+		return 0;
 		}
 	}
 	//Full node
-	return -1010;
+	return RC_NODE_FULL;
 }
 
 /*
@@ -127,7 +126,7 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 		//Insert new node
 		insert(key, rid);
 
-		//How to set pageid of next node to point to sibling though?
+		//Set pageid of next node outside of this function
 
 		return 0;
 	}
@@ -146,7 +145,7 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 {
 	for(eid=0; eid<MAX_LEAF_RECORDS; eid++){
 		int key;
-		int offset = (sizeof(int) + sizeof(RecordId))*eid;
+		int offset = (keyRecordComponentSize)*eid;
 		memcpy(&key, buffer + offset + sizeof(RecordId), sizeof(int));
 		//assume that no keys added can be 0
 		if(key >= searchKey || key == 0)
@@ -155,8 +154,7 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 
 	//All keys are smaller than searchKey
 	eid = -1;
-	//Fixed, change error code to the appropriate one from Bruinbase.h (not sure if -1013 is more appropriate)
-	return -1012;
+	return -1;
 }
 
 /*
@@ -170,7 +168,7 @@ RC BTLeafNode::readEntry(int eid, int& key, RecordId& rid)
 {
 	//eid starts at 0, 27 is max value
 	if(eid < tupleCount){
-		int offset = (sizeof(int) + sizeof(RecordId))*eid;
+		int offset = (keyRecordComponentSize)*eid;
 		memcpy(&rid, buffer + offset, sizeof(RecordId));
 		memcpy(&key, buffer + offset + sizeof(RecordId), sizeof(int));
 		return 0;
@@ -207,6 +205,8 @@ BTNonLeafNode::BTNonLeafNode()
 {
 	tupleCount = 0;
 	memset(buffer, 0, PageFile::PAGE_SIZE);
+	
+	//implement last node pointer
 }
 
 /*
@@ -258,6 +258,23 @@ char* BTNonLeafNode::getBufferPointer()
 	return &(buffer[0]);
 }
 
+void BTNonLeafNode::print()
+{
+	printf("numKeys: %d\n", tupleCount);
+	for(int eid = 0; eid < tupleCount; eid++){
+		int key;
+		PageId pid;
+		int offset = (keyPageComponentSize)*eid;
+		memcpy(&pid, buffer + offset, sizeof(PageId));
+		memcpy(&key, buffer + offset + sizeof(PageId), sizeof(int));
+		printf("page: %d, key: %d\n", pid, key);
+	}
+	PageId pid;
+	memcpy(&pid, buffer + keyPageComponentSize * tupleCount, sizeof(PageId)); 
+	printf("last: %d\n", pid);
+	return;
+}
+
 /*
 * Insert a (key, pid) pair to the node.
 * @param key[IN] the key to insert
@@ -265,22 +282,40 @@ char* BTNonLeafNode::getBufferPointer()
 * @return 0 if successful. Return an error code if the node is full.
 */
 RC BTNonLeafNode::insert(int key, PageId pid)
-{
-	int cid;
-	RC errorCode = locateChildPtr(key, cid);
-	//report any errors
-	if (errorCode != 0)
-		return errorCode;
-		
+{		
+	if(pid < 0){
+		return RC_INVALID_PID;
+	}
+
 	if(tupleCount >= MAX_LEAF_RECORDS){
-		return -1010;
+		return RC_NODE_FULL;
 	}
 	
-	//shift old info
-	memmove(buffer + (keyPageComponentSize*(cid+1)), buffer + (keyPageComponentSize*cid), (keyPageComponentSize*(tupleCount - cid)));
-	//insert new info
-	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId));
-	memcpy(buffer + (keyPageComponentSize*cid) + sizeof(PageId), &key, sizeof(int));
+	int eid = 0;
+	for(; eid<tupleCount; eid++){
+		int curKey;
+		int offset = (keyPageComponentSize)*eid;
+		memcpy(&curKey, buffer + offset + sizeof(PageId), sizeof(int));
+		//Skip first pid, add key then pid after unlike leaf node
+		if(curKey >= key){
+			int shiftSize = (keyPageComponentSize)*(tupleCount - eid);
+			
+			//Shift tuples
+			memmove(buffer + keyPageComponentSize*(eid+1) + sizeof(PageId), buffer + (keyPageComponentSize)*eid + sizeof(PageId), shiftSize);
+			
+			//Insert new tuple
+			memcpy(buffer + keyPageComponentSize*(eid) + sizeof(PageId), &key, sizeof(int));
+			memcpy(buffer + keyPageComponentSize*(eid) + sizeof(PageId) + sizeof(int), &pid, sizeof(PageId));
+			
+			tupleCount++;
+			return 0;
+		}
+	}
+	
+	//Key is greater than all other keys in the node. Add it in at the end.
+	//Will never have a key that is smaller than everything else because of the way we initialize and insert
+	memcpy(buffer + keyPageComponentSize*(eid) + sizeof(PageId), &key, sizeof(int));
+	memcpy(buffer + keyPageComponentSize*(eid) + sizeof(PageId) + sizeof(int), &pid, sizeof(PageId));
 	tupleCount++;
 	return 0;
 }
@@ -317,6 +352,7 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 	tupleCount++;
 	
 	//move (smaller) half of the tuples into the sibling buffer and then make sure the original node is clean
+	//removed buffer + from 3rd paramter, think that fixes it
 	memmove(siblingBuffer, buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),(keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
 	memset(buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),0, (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
 	
@@ -346,19 +382,21 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 */
 RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 {
-	//tbh, not sure what errors I should check for here
-	for(int id=0; id<MAX_LEAF_RECORDS; id++){
+	if(searchKey <= 0){
+		return RC_INVALID_ATTRIBUTE;
+	}
+	
+	for(int eid=0; eid<tupleCount; eid++){
 		int key;
-		memcpy(&key, buffer + (keyPageComponentSize*id) + sizeof(PageId), sizeof(int));
-		//assume that no keys added can be 0
-		if(key >= searchKey || key == 0){
-			memcpy(&pid, buffer + (keyPageComponentSize*id), sizeof(PageId));
+		memcpy(&key, buffer + (keyPageComponentSize*eid) + sizeof(PageId), sizeof(int));
+		if(key >= searchKey){
+			memcpy(&pid, buffer + (keyPageComponentSize*eid), sizeof(PageId));
 			return 0;
 		}
 	}
 
 	//if it is not smaller than any of the other nodes, return the last node
-	memcpy(&pid, buffer + (keyPageComponentSize*MAX_LEAF_RECORDS), sizeof(PageId));
+	memcpy(&pid, buffer + (keyPageComponentSize*tupleCount), sizeof(PageId));
 	return 0;
 }
 
@@ -371,8 +409,15 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 */
 RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
 {
+    if(pid1<0 || pid2<0)
+        return RC_INVALID_PID;
+	
 	memcpy(buffer, &pid1, sizeof(PageId));
 	memcpy(buffer + sizeof(PageId), &key, sizeof(PageId));
-	memcpy(buffer + sizeof(PageId) + sizeof(int), &pid2, sizeof(PageId));
+	memcpy(buffer + keyPageComponentSize, &pid2, sizeof(PageId));
+	
+	//set tupleCount to 1
+	tupleCount = 1;
+	
 	return 0;
 }
