@@ -244,7 +244,7 @@ int BTNonLeafNode::getKeyCount()
 * Change the counter stating the number of keys stored in a node.
 * @update tupleCount
 */
-void changeKeyCount(const int& newKeyCount)
+void BTNonLeafNode::changeKeyCount(const int& newKeyCount)
 {
 	tupleCount = newKeyCount;
 }
@@ -253,7 +253,7 @@ void changeKeyCount(const int& newKeyCount)
 * Return the pointer to the node's buffer.
 * @return the pointer to the node's buffer
 */
-char* getBufferPointer()
+char* BTNonLeafNode::getBufferPointer()
 {
 	return &(buffer[0]);
 }
@@ -277,9 +277,10 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 	}
 	
 	//shift old info
-	memmove(buffer + (keyPageComponentSize*(cid+1)), buffer + (keyPageComponentSize*cid), buffer + (keyPageComponentSize*(tupleCount - cid)));
+	//I removed buffer + from 3rd element
+	memmove(buffer + (keyPageComponentSize*(cid+1)), buffer + (keyPageComponentSize*cid), (keyPageComponentSize*(tupleCount - cid)));
 	//insert new info
-	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId);
+	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId));
 	memcpy(buffer + (keyPageComponentSize*cid) + sizeof(PageId), &key, sizeof(int));
 	tupleCount++;
 	return 0;
@@ -300,24 +301,25 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 	//declare variables
 	int cid;
 	RC errorCode = locateChildPtr(key, cid);
-	char* siblingBuffer = sibling.getBufferPointer()
+	char* siblingBuffer = sibling.getBufferPointer();
 	int numberOfCopiedTuples = (MAX_LEAF_RECORDS+1)/2;
 	if (errorCode != 0)
 		return errorCode;
 	//split
 	//make sure sibling node is empty (since constructor makes all values 0, we should be able to safely check if all values are 0
 	for (int i = 0; i < PageFile::PAGE_SIZE ; i++){
-		if (&(siblingBuffer + i) != 0)
-		return -1; //no idea what error message is supposed to be here
+		if (siblingBuffer[i] != 0)
+			return -1; //no idea what error message is supposed to be here
 	}
 	
 	//insert new tuple and create overflow
-	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId);
+	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId));
 	memcpy(buffer + (keyPageComponentSize*cid) + sizeof(PageId), &key, sizeof(int));
 	tupleCount++;
 	
 	//move (smaller) half of the tuples into the sibling buffer and then make sure the original node is clean
-	memmove(siblingBuffer, buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)), buffer + (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
+	//removed buffer + from 3rd paramter, think that fixes it
+	memmove(siblingBuffer, buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),(keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
 	memset(buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),0, (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
 	
 	//get midKey and remove that key
@@ -352,13 +354,15 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 		memcpy(&key, buffer + (keyPageComponentSize*id) + sizeof(PageId), sizeof(int));
 		//assume that no keys added can be 0
 		if(key >= searchKey || key == 0){
-			pid = buffer + (keyPageComponentSize*id);
+			//Fix: changed your line here, think it fixes it
+			memcpy(&pid, buffer + (keyPageComponentSize*id), sizeof(PageId));
 			return 0;
 		}
 	}
 
 	//if it is not smaller than any of the other nodes, return the last node
-	pid = buffer + (keyPageComponentSize*MAX_LEAF_RECORDS);
+	//Fix: changed your line here, think it fixes it
+	memcpy(&pid, buffer + (keyPageComponentSize*MAX_LEAF_RECORDS), sizeof(PageId));
 	return 0;
 }
 
@@ -371,8 +375,8 @@ RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 */
 RC BTNonLeafNode::initializeRoot(PageId pid1, int key, PageId pid2)
 {
-	memcpy(buffer, &pid1, sizeof(PageId);
-	memcpy(buffer + sizeof(PageId), &key, sizeof(PageId);
-	memcpy(buffer + sizeof(PageId) + sizeof(int), &pid2, sizeof(PageId);
+	memcpy(buffer, &pid1, sizeof(PageId));
+	memcpy(buffer + sizeof(PageId), &key, sizeof(PageId));
+	memcpy(buffer + sizeof(PageId) + sizeof(int), &pid2, sizeof(PageId));
 	return 0;
 }

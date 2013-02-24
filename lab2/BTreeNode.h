@@ -16,7 +16,7 @@
 //Max to fulfill test cases
 const int MAX_LEAF_RECORDS = 60;
 //Size of variables inserted into buffer
-const int keyPageComponentSize = (sizeof(PageId) + sizeof(int)) //basic size of PageId + int
+const int keyPageComponentSize = (sizeof(PageId) + sizeof(int)); //basic size of PageId + int
 
 /**
  * BTLeafNode: The class representing a B+tree leaf node.
@@ -178,7 +178,7 @@ class BTNonLeafNode {
 	* Change the counter stating the number of keys stored in a node.
 	* @update tupleCount
 	*/
-	void changeKeyCount(const int& newKeyCount)
+	void changeKeyCount(const int& newKeyCount);
 
    /**
 	* Return the pointer to the node's buffer.
