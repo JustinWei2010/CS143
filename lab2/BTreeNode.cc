@@ -81,7 +81,8 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 			memcpy(buffer + offset + sizeof(RecordId) + sizeof(int), tempBuffer, shiftSize);
 			tupleCount++;
 			free(tempBuffer);
-		return 0;
+		//fixed: return the correct error code if insert has an error
+		return rc;
 		}
 	}
 	//Full node
@@ -154,7 +155,8 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 
 	//All keys are smaller than searchKey
 	eid = -1;
-	return -1;
+	//Fixed, change error code to the appropriate one from Bruinbase.h (not sure if -1013 is more appropriate)
+	return -1012;
 }
 
 /*
