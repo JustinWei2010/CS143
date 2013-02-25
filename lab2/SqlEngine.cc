@@ -24,21 +24,19 @@ int sqlparse(void);
 RC SqlEngine::run(FILE* commandline)
 {
   fprintf(stdout, "Bruinbase> ");
-  
+  /*
   BTNonLeafNode node;
   BTNonLeafNode sibling;
-  int sibKey;
-  node.initializeRoot(0,1,5);
-
-  node.insert(3, 3);
-  node.insert(1, 0);
-  node.insert(4, 4);
-  node.insert(2,6);
-  node.insert(6,3);
-
+  int midKey;
+  node.initializeRoot(0,4,5);
+  node.insert(7, 0);
+  node.insert(2, 0);
+  node.insert(9, 0);
+  node.insertAndSplit(10, 0, sibling, midKey);
   node.print();
-  
-  
+  printf("midkey:%d\n", midKey);
+  sibling.print();
+  */
   // set the command line input and start parsing user input
   sqlin = commandline;
   sqlparse();  // sqlparse() is defined in SqlParser.tab.c generated from

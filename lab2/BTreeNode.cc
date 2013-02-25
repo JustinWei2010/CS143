@@ -101,36 +101,57 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
                               BTLeafNode& sibling, int& siblingKey)
 {
-	if(tupleCount == MAX_LEAF_RECORDS){
-		//The sibling node will have the same number of records in case of odd MAX_LEAF_RECORDS, less if even
-		for(int eid=MAX_LEAF_RECORDS/2; eid < tupleCount; eid++){
-			int key;
-			RecordId rid;
-			readEntry(eid, key, rid);
-			sibling.insert(key, rid);
-			//Set siblingKey as first key value
-			if(eid == MAX_LEAF_RECORDS/2){
-				siblingKey = key;
-			}
-		}
-
-		//Delete tuples from the original node
-		PageId currentNextPid = getNextNodePtr();
-		int offset = (MAX_LEAF_RECORDS/2)*(sizeof(RecordId) + sizeof(int));
-		memset(buffer + offset, 0, PageFile::PAGE_SIZE-offset);
-
-		//Set new key count and next node ptr
-		tupleCount = MAX_LEAF_RECORDS/2;
-		sibling.setNextNodePtr(currentNextPid);
-
-		//Insert new node
-		insert(key, rid);
-
-		//Set pageid of next node outside of this function
-
-		return 0;
+	//Make sure node is full
+	if(tupleCount < MAX_LEAF_RECORDS){ 
+        return -1;
+    }
+	
+	//Get the entry id where the tuple should be entered 
+	int eid = 0;
+	for(; eid<tupleCount; eid++){
+		int curKey;
+		RecordId rid;
+		readEntry(eid, curKey, rid);
+		if(curKey >= key)
+			break;
 	}
-	return -1;
+	
+	int start = MAX_LEAF_RECORDS/2;
+	//Split will be uneven unless start is changed in this case, entry inserted into sibling and MAX_LEAF_RECORDS is odd
+	if(eid > MAX_LEAF_RECORDS/2 && MAX_LEAF_RECORDS % 2 == 1)
+		start = MAX_LEAF_RECORDS/2 + 1;
+	
+	
+	//Insert entries to sibling
+	for(int sid=start; sid < MAX_LEAF_RECORDS; sid++){
+		int key;
+		RecordId rid;
+		readEntry(sid, key, rid);
+		sibling.insert(key, rid);
+		//Set siblingKey as first key value
+		if(sid == MAX_LEAF_RECORDS/2){
+			siblingKey = key;
+		}
+	}
+
+	
+	//Delete tuples from the original node
+	PageId currentNextPid = getNextNodePtr();
+	int offset = (start)*(sizeof(RecordId) + sizeof(int));
+	memset(buffer + offset, 0, PageFile::PAGE_SIZE-offset);
+	
+	//Set new key count and next node ptr
+	tupleCount = start;
+	sibling.setNextNodePtr(currentNextPid);
+
+	//Insert new node depending on where entry id is at
+	if(eid <= MAX_LEAF_RECORDS/2)
+		insert(key, rid);
+	else
+		sibling.insert(key,rid);
+
+	//Set pageid of next node outside of this function
+	return 0;
 }
 
 /*
@@ -166,14 +187,16 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 */
 RC BTLeafNode::readEntry(int eid, int& key, RecordId& rid)
 {
-	//eid starts at 0, 27 is max value
-	if(eid < tupleCount){
-		int offset = (keyRecordComponentSize)*eid;
-		memcpy(&rid, buffer + offset, sizeof(RecordId));
-		memcpy(&key, buffer + offset + sizeof(RecordId), sizeof(int));
-		return 0;
+	
+	if(eid < 0 || eid >= tupleCount){
+		return RC_INVALID_ATTRIBUTE;
 	}
-	return -1;//or a specific RC
+
+	int offset = (keyRecordComponentSize)*eid;
+	memcpy(&rid, buffer + offset, sizeof(RecordId));
+	memcpy(&key, buffer + offset + sizeof(RecordId), sizeof(int));
+	return 0;
+	
 }
 
 /*
@@ -198,7 +221,7 @@ RC BTLeafNode::setNextNodePtr(PageId pid)
 		memcpy(buffer+PageFile::PAGE_SIZE-sizeof(PageId), &pid, sizeof(PageId));
 		return 0;
 	}
-	return -1; //probably return a specific RC later on
+	return RC_INVALID_PID;
 }
 
 BTNonLeafNode::BTNonLeafNode()
@@ -332,45 +355,64 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 */
 RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
 {
-	//declare variables
-	int cid;
-	RC errorCode = locateChildPtr(key, cid);
-	char* siblingBuffer = sibling.getBufferPointer();
-	int numberOfCopiedTuples = (MAX_LEAF_RECORDS+1)/2;
-	if (errorCode != 0)
-		return errorCode;
-	//split
+	int numberOfCopiedTuples = (MAX_LEAF_RECORDS)/2;
+	
 	//make sure sibling node is empty (since constructor makes all values 0, we should be able to safely check if all values are 0
+	char* siblingBuffer = sibling.getBufferPointer();
 	for (int i = 0; i < PageFile::PAGE_SIZE ; i++){
 		if (siblingBuffer[i] != 0)
-			return -1; //no idea what error message is supposed to be here
+			return -1;
 	}
 	
-	//insert new tuple and create overflow
-	memcpy(buffer + (keyPageComponentSize*cid), &pid, sizeof(PageId));
-	memcpy(buffer + (keyPageComponentSize*cid) + sizeof(PageId), &key, sizeof(int));
-	tupleCount++;
+	//Make sure node is full
+	if(tupleCount < MAX_LEAF_RECORDS){ 
+        return -1;
+    }
+	
+	//Insert tuple into node, node will overflow, but buffer should have enough excess space to hold the overflow
+	int eid = 0;
+	for(; eid<MAX_LEAF_RECORDS; eid++){
+		int curKey;
+		int offset = (keyPageComponentSize)*eid;
+		memcpy(&curKey, buffer + offset + sizeof(PageId), sizeof(int));
+		//Skip first pid, add key then pid after unlike leaf node
+		if(curKey >= key){
+			int shiftSize = (keyPageComponentSize)*(tupleCount - eid);
+			
+			//Shift tuples
+			memmove(buffer + keyPageComponentSize*(eid+1) + sizeof(PageId), buffer + (keyPageComponentSize)*eid + sizeof(PageId), shiftSize);
+			
+			//Insert new tuple
+			memcpy(buffer + keyPageComponentSize*(eid) + sizeof(PageId), &key, sizeof(int));
+			memcpy(buffer + keyPageComponentSize*(eid) + sizeof(PageId) + sizeof(int), &pid, sizeof(PageId));
+			tupleCount++;
+			break;
+		}
+	}
+	
+	//Key is greater than all other keys in the node. Add it in at the end.
+	//Will never have a key that is smaller than everything else because of the way we initialize and insert	
+	if(eid == MAX_LEAF_RECORDS){
+		memcpy(buffer + keyPageComponentSize*(eid) + sizeof(PageId), &key, sizeof(int));
+		memcpy(buffer + keyPageComponentSize*(eid) + sizeof(PageId) + sizeof(int), &pid, sizeof(PageId));
+		tupleCount++;
+	}
 	
 	//move (smaller) half of the tuples into the sibling buffer and then make sure the original node is clean
-	//removed buffer + from 3rd paramter, think that fixes it
 	memmove(siblingBuffer, buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),(keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
 	memset(buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),0, (keyPageComponentSize*numberOfCopiedTuples) + sizeof(PageId));
 	
 	//get midKey and remove that key
-	memcpy(&midKey, buffer + (keyPageComponentSize*(MAX_LEAF_RECORDS - numberOfCopiedTuples - 1)) + sizeof(PageId), sizeof(int));
-	memset(buffer + (keyPageComponentSize*(tupleCount - numberOfCopiedTuples)),0, sizeof(int));
+	memcpy(&midKey, buffer + (keyPageComponentSize*(MAX_LEAF_RECORDS - numberOfCopiedTuples)) + sizeof(PageId), sizeof(int));
+	memset(buffer + (keyPageComponentSize*(MAX_LEAF_RECORDS - numberOfCopiedTuples)) + sizeof(PageId),0, sizeof(int));
 	
 	//update key count for both nodes
-	changeKeyCount(MAX_LEAF_RECORDS - numberOfCopiedTuples - 1);
+	changeKeyCount(MAX_LEAF_RECORDS - numberOfCopiedTuples);
 	sibling.changeKeyCount(numberOfCopiedTuples);
-	
-	//insert the new child pointer
-	if (cid < (MAX_LEAF_RECORDS - numberOfCopiedTuples))
-		errorCode = insert(key, pid);
-	else
-		errorCode = sibling.insert(key, pid);
 		
-	return errorCode;
+	//Set midkey to parent node outside function	
+		
+	return 0;
 }
 
 /*
