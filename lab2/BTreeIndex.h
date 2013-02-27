@@ -90,6 +90,14 @@ class BTreeIndex {
    */
   RC readForward(IndexCursor& cursor, int& key, RecordId& rid);
   
+  /**
+   * Use the given search key to traverse the tree from the root to the leaf node
+   * @param searchKey[IN] the key to find
+   * @param leafNode[OUT] the PageId of the required leaf node
+   * @return error code. 0 if no error
+   */
+  RC traverseToLeafNode(int searchKey, PageId leafNode);
+  
  private:
   PageFile pf;         /// the PageFile used to store the actual b+tree in disk
 

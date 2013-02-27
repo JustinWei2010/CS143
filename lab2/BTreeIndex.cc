@@ -49,18 +49,9 @@ RC BTreeIndex::close()
  */
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
-	PageId currentNode = rootPid;
-	BTNonLeafNode NonLeafNode;
 	BTLeafNode LeafNode;
-	for(int i; i < treeHeight; i++)
-	{
-		//for each tree level, find which node to follow
-		if (NonLeafNode.read(currentNode, pf) == 0)
-			NonLeafNode.locate(key, currentNode);
-		//if node is filled, split the nodes
-			//use a helper function to pass the node up the entire way
-	}
-	if (LeafNode.read(key, currentNode);)
+	traverseToLeafNode (key, LeafNode);
+	if (LeafNode.read(key, currentNode);
 		BTLeafNode.insert(key, rid);
 	//insert the node and rid into the leaf node
 	//if node is filled, split the nodes
@@ -87,7 +78,9 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
  */
 RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 {
-    return 0;
+	traverseToLeafNode (key, cursor.pid);
+	if (LeafNode.read(cursor.pid, pf);
+		return BTLeafNode.locate(searchKey, cursor.eid);
 }
 
 /*
@@ -101,4 +94,19 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
     return 0;
+}
+
+RC BTreeIndex::traverseToLeafNode(int searchKey, PageId& leafNode)
+{
+	PageId currentNode = rootPid;
+	BTNonLeafNode NonLeafNode;
+	for(int i; i < treeHeight; i++)
+	{
+		//for each tree level, find which node to follow
+		if (NonLeafNode.read(currentNode, pf) == 0)
+			NonLeafNode.locate(searchKey, leafNode);
+		//if node is filled, split the nodes
+			//use a helper function to pass the node up the entire way
+	}
+	return 0;
 }
