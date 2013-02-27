@@ -50,11 +50,16 @@ RC BTreeIndex::close()
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
 	BTLeafNode LeafNode;
+	RC errorCode;
+	//find the correct lead node/position that fits the key and try to insert rid
 	traverseToLeafNode (key, LeafNode);
-	if (LeafNode.read(key, currentNode);
-		BTLeafNode.insert(key, rid);
-	//insert the node and rid into the leaf node
-	//if node is filled, split the nodes
+	errorCode = LeafNode.read(key, currentNode)
+	if (errorCode == 0)
+		errorCode = BTLeafNode.insert(key, rid);
+	//if node is filled, split the nodes and the nodes above it as many times as needed
+	if (errorCode == RC_NODE_FULL){}
+		//overflow process
+	return errorCode;
 }
 
 /*

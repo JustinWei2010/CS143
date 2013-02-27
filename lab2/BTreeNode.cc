@@ -176,6 +176,7 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 	//All keys are smaller than searchKey
 	eid = -1;
 	return -1;
+	//I was meaning to ask earlier, but for this function, are you going to follow the next node pointer so that you can possibly find the answer in the next node
 }
 
 /*
