@@ -29,7 +29,7 @@ BTreeIndex::BTreeIndex()
  */
 RC BTreeIndex::open(const string& indexname, char mode)
 {
-    return 0;
+  return pf.open(indexname, mode);
 }
 
 /*
@@ -38,7 +38,7 @@ RC BTreeIndex::open(const string& indexname, char mode)
  */
 RC BTreeIndex::close()
 {
-    return 0;
+    return pf.close();
 }
 
 /*
@@ -49,7 +49,21 @@ RC BTreeIndex::close()
  */
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
-    return 0;
+	PageId currentNode = rootPid;
+	BTNonLeafNode NonLeafNode;
+	BTLeafNode LeafNode;
+	for(int i; i < treeHeight; i++)
+	{
+		//for each tree level, find which node to follow
+		if (NonLeafNode.read(currentNode, pf) == 0)
+			NonLeafNode.locate(key, currentNode);
+		//if node is filled, split the nodes
+			//use a helper function to pass the node up the entire way
+	}
+	if (LeafNode.read(key, currentNode);)
+		BTLeafNode.insert(key, rid);
+	//insert the node and rid into the leaf node
+	//if node is filled, split the nodes
 }
 
 /*
