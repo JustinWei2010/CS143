@@ -54,8 +54,9 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 	//find the correct lead node/position that fits the key and try to insert rid
 	traverseToLeafNode (key, LeafNode);
 	errorCode = LeafNode.read(key, currentNode)
-	if (errorCode == 0)
-		errorCode = BTLeafNode.insert(key, rid);
+	if (errorCode != 0)
+		return errorCode;
+	errorCode = BTLeafNode.insert(key, rid);
 	//if node is filled, split the nodes and the nodes above it as many times as needed
 	if (errorCode == RC_NODE_FULL){}
 		//overflow process
@@ -83,6 +84,7 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
  */
 RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 {
+	BTLeafNode LeafNode;
 	traverseToLeafNode (key, cursor.pid);
 	if (LeafNode.read(cursor.pid, pf);
 		return BTLeafNode.locate(searchKey, cursor.eid);
@@ -98,7 +100,16 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
-    return 0;
+	BTLeafNode LeafNode;
+	RC errorCode;
+	//get the record and key from teh current location
+	errorCode = LeafNode.read(cursor.pid, pf);
+	if (errorCode != 0)
+		return errorCode;
+	errorCode = LeafNode.readEntry(cursor.eid, key, rid);
+	//update cursor with the new entree (get new eid)
+	cursor.eid++;
+	return errorCode;
 }
 
 RC BTreeIndex::traverseToLeafNode(int searchKey, PageId& leafNode)
