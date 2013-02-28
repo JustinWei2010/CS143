@@ -85,7 +85,7 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 {
 	BTLeafNode LeafNode;
-	traverseToLeafNode (key, cursor.pid);
+	traverseToLeafNode (key, LeafNode);
 	if (LeafNode.read(cursor.pid, pf);
 		return BTLeafNode.locate(searchKey, cursor.eid);
 }
@@ -100,6 +100,9 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
+	if(cursor.pid < 0)
+        return RC_INVALID_PID;
+		
 	BTLeafNode LeafNode;
 	RC errorCode;
 	//get the record and key from teh current location
@@ -107,7 +110,8 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 	if (errorCode != 0)
 		return errorCode;
 	errorCode = LeafNode.readEntry(cursor.eid, key, rid);
-	//update cursor with the new entree (get new eid)
+	//update cursor with the new entree (add 1 to eid) 
+	//Do we need to worry about tuple limit?
 	cursor.eid++;
 	return errorCode;
 }
@@ -116,13 +120,17 @@ RC BTreeIndex::traverseToLeafNode(int searchKey, PageId& leafNode)
 {
 	PageId currentNode = rootPid;
 	BTNonLeafNode NonLeafNode;
+	RC errorCode;
+	//define NonLeafNode as root to start
+	//traverse down the tree
 	for(int i; i < treeHeight; i++)
 	{
 		//for each tree level, find which node to follow
-		if (NonLeafNode.read(currentNode, pf) == 0)
-			NonLeafNode.locate(searchKey, leafNode);
-		//if node is filled, split the nodes
-			//use a helper function to pass the node up the entire way
+		errorCode = NonLeafNode.read(currentNode, pf)
+		if (errorCode != 0)
+			return errorCode;
+		NonLeafNode.locateChildPtr(searchKey, currentNode);
+		//somehow redefine NonLeafNode using the PageID currentNode
 	}
 	return 0;
 }
