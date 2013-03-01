@@ -144,13 +144,13 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 {
   /* implement index part in later parts of lab */
-  if(!index){
+	BTreeIndex treeIndex;
 	RecordFile rf;
 	RecordId rid;
-	RC rc;
+	RC rc = 0;
 	ifstream file(loadfile.c_str());
 	
-	//open the table file and loadfile
+	//open the table file, loadfile, and BTreeIndex
 	if(!file.is_open()){
 		fprintf(stderr, "Error: Could not open file %s\n", loadfile.c_str());
 		return -1;
@@ -161,20 +161,36 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 		return rc;
 	}
 	
+	if ((rc = treeIndex.open("tblname.idx",'w')) < 0) {
+		fprintf(stderr, "Error: Error creating or writing to tblname.idx");
+		return rc;
+	}
+	
 	//read in file
 	while(!file.eof()){
 		int key;
 		string line, value;
 		getline(file, line);
-		parseLoadLine(line, key, value);
+		if((rc = parseLoadLine(line, key, value)) < 0){
+			rf.close();
+			file.close();
+			return rc;
+		}
 		if(key != 0 || strcmp(value.c_str(), "") != 0)
 			rf.append(key, value, rid);
+		if (index) {
+			if((rc = treeIndex.insert(value, rid)) < 0){
+				rf.close();
+				file.close();
+				return rc;
+			}
+		}
 	}
-	
+	//save treeIndex file constants before closing (not done)
+	treeIndex.close();
 	rf.close();
 	file.close();
-  }
-  return 0;
+	return 0;
 }
 
 RC SqlEngine::parseLoadLine(const string& line, int& key, string& value)
