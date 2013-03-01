@@ -17,6 +17,7 @@ using namespace std;
  */
 BTreeIndex::BTreeIndex()
 {
+	treeHeight = 0;
     rootPid = -1;
 }
 
@@ -29,7 +30,7 @@ BTreeIndex::BTreeIndex()
  */
 RC BTreeIndex::open(const string& indexname, char mode)
 {
-  return pf.open(indexname, mode);
+    return pf.open(indexname, mode);
 }
 
 /*
@@ -49,18 +50,38 @@ RC BTreeIndex::close()
  */
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
-	BTLeafNode LeafNode;
+	//Tree is empty
+	if(rootPid == -1 || treeHeight == 0){
+		char info[PageFile::PAGE_SIZE];
+		rootPid = pf.endPid();
+		BTLeafNode leafNode;
+		leafNode.insert(key, rid);
+		leafNode.write(rootPid, pf);
+		leafNode.print();
+		treeHeight++;
+		
+		IndexCursor cursor;
+		cursor.pid = -1;
+		cursor.eid = -1;
+		printf("error: %d\n", locate(10, cursor));
+		printf("pid:%d, eid:%d\n", cursor.pid, cursor.eid);
+	}
+
+	return -1;
 	RC errorCode;
+	
 	//find the correct lead node/position that fits the key and try to insert rid
-	traverseToLeafNode (key, LeafNode);
-	errorCode = LeafNode.read(key, currentNode)
+	//traverseToLeafNode (key, LeafNode);
+	//errorCode = LeafNode.read(key, currentNode);
 	if (errorCode != 0)
 		return errorCode;
-	errorCode = BTLeafNode.insert(key, rid);
+	//errorCode = LeafNode.insert(key, rid);
 	//if node is filled, split the nodes and the nodes above it as many times as needed
 	if (errorCode == RC_NODE_FULL){}
-		//overflow process
+	//overflow process
 	return errorCode;
+	
+	return -1;
 }
 
 /*
@@ -84,10 +105,24 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
  */
 RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 {
-	BTLeafNode LeafNode;
-	traverseToLeafNode (key, LeafNode);
-	if (LeafNode.read(cursor.pid, pf);
-		return BTLeafNode.locate(searchKey, cursor.eid);
+	RC errorCode = 0;
+	BTLeafNode leafNode;
+	
+	//Check for if tree is empty
+	if(rootPid < 0 || treeHeight < 1){
+		return -1;
+	}
+	
+	//Traverse to leaf node
+	if((errorCode = traverseToLeafNode (searchKey, cursor.pid)) < 0)
+		return errorCode;
+
+	//Read in the node and locate the entry number
+	if((errorCode = leafNode.read(cursor.pid, pf)) < 0){
+		return errorCode;
+	}
+	
+	return leafNode.locate(searchKey, cursor.eid);
 }
 
 /*
@@ -100,37 +135,47 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
-	if(cursor.pid < 0)
+    if(cursor.pid < 0)
         return RC_INVALID_PID;
+
+	if(cursor.eid < 0)
+		return RC_INVALID_ATTRIBUTE;
 		
-	BTLeafNode LeafNode;
-	RC errorCode;
-	//get the record and key from teh current location
-	errorCode = LeafNode.read(cursor.pid, pf);
-	if (errorCode != 0)
+	BTLeafNode leafNode;
+	RC errorCode = 0;
+	
+	//get the record and key from the current location
+	if((errorCode = leafNode.read(cursor.pid, pf)) < 0)
+		return errorCode;		
+	if((errorCode = leafNode.readEntry(cursor.eid, key, rid)) < 0)
 		return errorCode;
-	errorCode = LeafNode.readEntry(cursor.eid, key, rid);
-	//update cursor with the new entree (add 1 to eid) 
-	//Do we need to worry about tuple limit?
+	
+	//update cursor with the new entree (add 1 to eid)
 	cursor.eid++;
+	//If at the end of a node, set cursor on next node
+	if(cursor.eid >= leafNode.getKeyCount()){
+		cursor.pid = leafNode.getNextNodePtr();
+		cursor.eid = 0;
+	}
+	
 	return errorCode;
 }
 
-RC BTreeIndex::traverseToLeafNode(int searchKey, PageId& leafNode)
+RC BTreeIndex::traverseToLeafNode(int searchKey, PageId& leafPid)
 {
-	PageId currentNode = rootPid;
+	PageId currentPid = rootPid;
 	BTNonLeafNode NonLeafNode;
-	RC errorCode;
+	RC errorCode = 0;
 	//define NonLeafNode as root to start
 	//traverse down the tree
-	for(int i; i < treeHeight; i++)
-	{
+	for(int i = 1; i < treeHeight; i++){
 		//for each tree level, find which node to follow
-		errorCode = NonLeafNode.read(currentNode, pf)
-		if (errorCode != 0)
+		if((errorCode = NonLeafNode.read(currentPid, pf)) < 0)
 			return errorCode;
-		NonLeafNode.locateChildPtr(searchKey, currentNode);
-		//somehow redefine NonLeafNode using the PageID currentNode
+			
+		if((errorCode = NonLeafNode.locateChildPtr(searchKey, currentPid)) < 0)
+			return errorCode;
 	}
-	return 0;
+	leafPid = currentPid;
+	return errorCode;
 }
