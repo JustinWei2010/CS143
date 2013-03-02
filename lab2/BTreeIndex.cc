@@ -22,6 +22,14 @@ BTreeIndex::BTreeIndex()
 }
 
 /*
+ * BTreeIndex destructor
+ */
+BTreeIndex::~BTreeIndex()
+{
+	close();
+}
+
+/*
  * Open the index file in read or write mode.
  * Under 'w' mode, the index file should be created if it does not exist.
  * @param indexname[IN] the name of the index file
@@ -50,38 +58,107 @@ RC BTreeIndex::close()
  */
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
-	//Tree is empty
+	RC errorCode = 0;
 	if(rootPid == -1 || treeHeight == 0){
-		char info[PageFile::PAGE_SIZE];
+		//Tree is empty
 		rootPid = pf.endPid();
 		BTLeafNode leafNode;
-		leafNode.insert(key, rid);
-		leafNode.write(rootPid, pf);
+		if((errorCode = leafNode.insert(key, rid)) < 0)
+			return errorCode;
+		if((errorCode = leafNode.setNextNodePtr(-1)) < 0) //Next node ptr should be undefined, end of tree
+			return errorCode;
+		if((errorCode = leafNode.write(rootPid, pf)) < 0)
+			return errorCode;
 		leafNode.print();
 		treeHeight++;
-		
-		IndexCursor cursor;
-		cursor.pid = -1;
-		cursor.eid = -1;
-		printf("error: %d\n", locate(10, cursor));
-		printf("pid:%d, eid:%d\n", cursor.pid, cursor.eid);
+		return 0;
+	}else{
+		//Tree is not empty, so traverse it
+		int sibKey = -1;
+		PageId sibPid = -1;
+		return traverseAndInsert(key, rid, rootPid, sibKey, sibPid, treeHeight);
 	}
+}
 
-	return -1;
+RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &sibKey, PageId &sibPid, int level){
 	RC errorCode;
-	
-	//find the correct lead node/position that fits the key and try to insert rid
-	//traverseToLeafNode (key, LeafNode);
-	//errorCode = LeafNode.read(key, currentNode);
-	if (errorCode != 0)
-		return errorCode;
-	//errorCode = LeafNode.insert(key, rid);
-	//if node is filled, split the nodes and the nodes above it as many times as needed
-	if (errorCode == RC_NODE_FULL){}
-	//overflow process
-	return errorCode;
-	
-	return -1;
+	if(level != 1){
+		//At a non-leaf level
+		if((errorCode = traverseAndInsert(key, rid, pid, sibKey, sibPid, level-1)) < 0)
+			return errorCode;
+		
+		BTNonLeafNode nonLeafNode;
+		if((errorCode = nonLeafNode.read(pid,pf)) < 0)
+			return errorCode;		
+		
+		//Insertion to nonLeafNode
+		if(nonLeafNode.getKeyCount() >= MAX_LEAF_RECORDS){
+			//Nonleaf overflow
+			BTNonLeafNode siblingNode;
+			sibPid = pf.endPid();
+			if((errorCode = nonLeafNode.insertAndSplit(key, pid, siblingNode, sibKey)) < 0)
+				return errorCode;
+			if((errorCode = nonLeafNode.write(pid, pf)) < 0)
+				return errorCode;	
+			if((errorCode = siblingNode.write(sibPid, pf)) < 0)
+				return errorCode;			
+			
+			//Need to initialize a new root
+			if(pid == rootPid){
+				rootPid = pf.endPid();
+				BTNonLeafNode rootNode;
+				if((errorCode = rootNode.initializeRoot(pid, sibKey, sibPid)) < 0)
+					return errorCode;
+				treeHeight++;				
+			}
+			return 0;
+		}else{
+			//No overflow
+			if((errorCode = nonLeafNode.insert(sibKey,sibPid)) < 0)
+				return errorCode;
+			if((errorCode = nonLeafNode.write(sibPid, pf)) < 0)
+				return errorCode;
+			return 0;
+		}
+	}else{
+		//At the leaf level
+		BTLeafNode leafNode;
+		if((errorCode = leafNode.read(pid,pf)) < 0)
+			return errorCode;
+		
+		//Insertion to leafNode
+		if(leafNode.getKeyCount() >= MAX_LEAF_RECORDS){
+			//Leaf node overflow
+			BTLeafNode siblingNode;
+			sibPid = pf.endPid();
+			//Insert tuple and split
+			if((errorCode = leafNode.insertAndSplit(key, rid, siblingNode, sibKey)) < 0)
+				return errorCode;
+			if((errorCode = leafNode.setNextNodePtr(pid)) < 0)
+				return errorCode;
+			if((errorCode = leafNode.write(pid, pf)) < 0)
+				return errorCode;	
+			if((errorCode = siblingNode.write(sibPid, pf)) < 0)
+				return errorCode;
+			
+			//Need to initialize a new root
+			if(pid == rootPid){
+				rootPid = pf.endPid();
+				BTNonLeafNode rootNode;
+				if((errorCode = rootNode.initializeRoot(pid, sibKey, sibPid)) < 0)
+					return errorCode;
+				treeHeight++;
+			}
+			return 0;
+		}else{
+			//If leaf node is not full, simple case
+			if((errorCode = leafNode.insert(key,rid)) < 0)
+				return errorCode;
+			if((errorCode = leafNode.write(pid, pf)) < 0)
+				return errorCode;
+			return 0;
+		}
+	}
 }
 
 /*

@@ -35,6 +35,8 @@ class BTreeIndex {
  public:
   BTreeIndex();
 
+  ~BTreeIndex();
+  
   /**
    * Open the index file in read or write mode.
    * Under 'w' mode, the index file should be created if it does not exist.
@@ -49,7 +51,7 @@ class BTreeIndex {
    * @return error code. 0 if no error
    */
   RC close();
-    
+   
   /**
    * Insert (key, RecordId) pair to the index.
    * @param key[IN] the key for the value inserted into the index
@@ -58,6 +60,14 @@ class BTreeIndex {
    */
   RC insert(int key, const RecordId& rid);
 
+  /**
+   * Recursively traverses to where tuple should be and inserts it into the tree. 
+   * @param key[IN] the key for the value inserted into the index
+   * @param rid[IN] the RecordId for the record being inserted into the index
+   * @return error code. 0 if no error
+   */  
+  RC traverseAndInsert(int key, const RecordId rid, PageId pid, int &sibKey, PageId &sibPid, int level);
+  
   /**
    * Find the leaf-node index entry whose key value is larger than or
    * equal to searchKey and output its location (i.e., the page id of the node
