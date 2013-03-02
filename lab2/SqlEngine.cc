@@ -186,7 +186,11 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 			}
 		}
 	}
-	//save treeIndex file constants before closing (not done)
+	//save treeIndex file constants before closing
+	rid.pid = treeIndex.rootPid;
+	rid.sid = treeIndex.treeHeight;
+	rf.erid = rid;
+	//close all of the files
 	treeIndex.close();
 	rf.close();
 	file.close();
