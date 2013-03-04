@@ -10,9 +10,11 @@
 #include <cstdio>
 #include <iostream>
 #include <fstream>
+#include <sstream> //for ostringstream
 #include "Bruinbase.h"
 #include "SqlEngine.h"
 #include "BTreeNode.h" //added for testing
+#include "BTreeIndex.h"
 
 using namespace std;
 
@@ -67,14 +69,14 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 	}
 	
 	//check if there is an index
-	rc.read(rc.erid, key, value)
+	rf.read(rf.endRid(), key, value);
 	
 	// scan the table file from the beginning
 	rid.pid = rid.sid = 0;
 	count = 0;
 	
 	//if there is an index
-	if(key == 46339 && value.compare(0,5,"index") {
+	if(key == 46339 && value.compare(0,5,"index")) {
 		//define tree index's private functions
 			//incomplete
 		//read the cond to find out the key to search
@@ -169,6 +171,7 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 	BTreeIndex treeIndex;
 	RecordFile rf;
 	RecordId rid;
+	ostringstream convert;
 	RC rc = 0;
 	ifstream file(loadfile.c_str());
 	
@@ -201,7 +204,7 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 		if(key != 0 || strcmp(value.c_str(), "") != 0)
 			rf.append(key, value, rid);
 		if (index) {
-			if((rc = treeIndex.insert(value, rid)) < 0){
+			if((rc = treeIndex.insert(key, rid)) < 0){
 				rf.close();
 				file.close();
 				return rc;
@@ -210,8 +213,12 @@ RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 	}
 	//save treeIndex file constants before closing (Needs fixing)
 	key = 46339; //index in telophone keypad numbers
-	value << "index," << rid.pid << "," << rid.sid; //adding on the tree information into the value
-	rf.append(key, value.str(), rid);
+	//adding on the tree information into the value
+	convert << rid.pid;
+	value = "index," + convert.str();
+	convert << rid.sid;
+	value += "," + convert.str();
+	rf.append(key, value, rid);
 	//close all of the files
 	treeIndex.close();
 	rf.close();
