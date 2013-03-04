@@ -33,7 +33,11 @@ void BTLeafNode::print()
 */
 RC BTLeafNode::read(PageId pid, const PageFile& pf)
 {
-	return pf.read(pid, buffer);
+	RC errorCode;
+	if((errorCode = pf.read(pid,buffer)) < 0)
+		return errorCode;
+	memcpy(&tupleCount, buffer+PageFile::PAGE_SIZE-sizeof(int), sizeof(int));
+	return 0;
 }
     
 /*
@@ -44,6 +48,7 @@ RC BTLeafNode::read(PageId pid, const PageFile& pf)
 */
 RC BTLeafNode::write(PageId pid, PageFile& pf)
 {
+	memcpy(buffer+PageFile::PAGE_SIZE-sizeof(int), &tupleCount, sizeof(int));
 	return pf.write(pid, buffer);
 }
 
@@ -81,7 +86,7 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 			memcpy(buffer + offset + keyRecordComponentSize, tempBuffer, shiftSize);
 			tupleCount++;
 			free(tempBuffer);
-		return 0;
+			return 0;
 		}
 	}
 	//Full node
@@ -129,7 +134,7 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 		readEntry(sid, key, rid);
 		sibling.insert(key, rid);
 		//Set siblingKey as first key value
-		if(sid == MAX_LEAF_RECORDS/2){
+		if(sid == start){
 			siblingKey = key;
 		}
 	}
@@ -173,10 +178,9 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 			return 0;
 	}
 
-	//All keys are smaller than searchKey
+	//Should only hit here if node is full and calling locate
 	eid = -1;
-	return -1;
-	//I was meaning to ask earlier, but for this function, are you going to follow the next node pointer so that you can possibly find the answer in the next node
+	return RC_NODE_FULL;
 }
 
 /*
@@ -207,7 +211,7 @@ RC BTLeafNode::readEntry(int eid, int& key, RecordId& rid)
 PageId BTLeafNode::getNextNodePtr()
 {
 	PageId pid;
-	memcpy(&pid, buffer+PageFile::PAGE_SIZE-sizeof(PageId), sizeof(PageId));
+	memcpy(&pid, buffer+PageFile::PAGE_SIZE-sizeof(int)-sizeof(PageId), sizeof(PageId));
 	return pid;
 }
 
@@ -218,8 +222,8 @@ PageId BTLeafNode::getNextNodePtr()
 */
 RC BTLeafNode::setNextNodePtr(PageId pid)
 {
-	if(pid >= 0){
-		memcpy(buffer+PageFile::PAGE_SIZE-sizeof(PageId), &pid, sizeof(PageId));
+	if(pid >= 0 || pid == -1015){
+		memcpy(buffer+PageFile::PAGE_SIZE-sizeof(int)-sizeof(PageId), &pid, sizeof(PageId));
 		return 0;
 	}
 	return RC_INVALID_PID;
@@ -241,7 +245,11 @@ BTNonLeafNode::BTNonLeafNode()
 */
 RC BTNonLeafNode::read(PageId pid, const PageFile& pf)
 {
-	return pf.read(pid, buffer);
+	RC errorCode;
+	if((errorCode = pf.read(pid,buffer)) < 0)
+		return errorCode;
+	memcpy(&tupleCount, buffer+PageFile::PAGE_SIZE-sizeof(int), sizeof(int));
+	return 0;
 }
     
 /*
@@ -252,6 +260,7 @@ RC BTNonLeafNode::read(PageId pid, const PageFile& pf)
 */
 RC BTNonLeafNode::write(PageId pid, PageFile& pf)
 {
+	memcpy(buffer+PageFile::PAGE_SIZE-sizeof(int), &tupleCount, sizeof(int));
 	return pf.write(pid, buffer);
 }
 
@@ -357,7 +366,6 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
 {
 	int numberOfCopiedTuples = (MAX_LEAF_RECORDS)/2;
-	
 	//make sure sibling node is empty (since constructor makes all values 0, we should be able to safely check if all values are 0
 	char* siblingBuffer = sibling.getBufferPointer();
 	for (int i = 0; i < PageFile::PAGE_SIZE ; i++){
@@ -412,7 +420,6 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 	sibling.changeKeyCount(numberOfCopiedTuples);
 		
 	//Set midkey to parent node outside function	
-		
 	return 0;
 }
 

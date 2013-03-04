@@ -22,14 +22,6 @@ BTreeIndex::BTreeIndex()
 }
 
 /*
- * BTreeIndex destructor
- */
-BTreeIndex::~BTreeIndex()
-{
-	close();
-}
-
-/*
  * Open the index file in read or write mode.
  * Under 'w' mode, the index file should be created if it does not exist.
  * @param indexname[IN] the name of the index file
@@ -38,7 +30,27 @@ BTreeIndex::~BTreeIndex()
  */
 RC BTreeIndex::open(const string& indexname, char mode)
 {
-    return pf.open(indexname, mode);
+	RC errorCode;
+	if((errorCode = pf.open(indexname, mode)) < 0)
+		return errorCode;
+	
+	//Set or retrieve treeHeight and rootPid from first page
+	if(pf.endPid() <= 0){
+		//Tree has not been initialized yet
+		char buffer[PageFile::PAGE_SIZE];
+		memset(buffer, 0, PageFile::PAGE_SIZE);
+		memcpy(buffer, &treeHeight, sizeof(int));
+		memcpy(buffer + sizeof(int), &rootPid, sizeof(PageId));
+		if((errorCode = pf.write(0, buffer)) < 0)
+			return errorCode;
+	}else{
+		char buffer[PageFile::PAGE_SIZE];
+		if((errorCode = pf.read(0, buffer)) < 0)
+			return errorCode;
+		memcpy(&treeHeight, buffer, sizeof(int));
+		memcpy(&rootPid, buffer + sizeof(int), sizeof(PageId));
+	}
+    return 0;
 }
 
 /*
@@ -47,6 +59,13 @@ RC BTreeIndex::open(const string& indexname, char mode)
  */
 RC BTreeIndex::close()
 {
+	RC errorCode;
+	char buffer[PageFile::PAGE_SIZE];
+	memset(buffer, 0, PageFile::PAGE_SIZE);
+	memcpy(buffer, &treeHeight, sizeof(int));
+	memcpy(buffer + sizeof(int), &rootPid, sizeof(PageId));
+	if((errorCode = pf.write(0, buffer)) < 0)
+		return errorCode;
     return pf.close();
 }
 
@@ -62,10 +81,14 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 	if(rootPid == -1 || treeHeight == 0){
 		//Tree is empty
 		rootPid = pf.endPid();
+		//Increment if rootPid is on the page where treeHeight and rootPid are stored
+		if(rootPid == 0)
+			rootPid ++;
 		BTLeafNode leafNode;
 		if((errorCode = leafNode.insert(key, rid)) < 0)
 			return errorCode;
-		if((errorCode = leafNode.setNextNodePtr(-1)) < 0) //Next node ptr should be undefined, end of tree
+		//Next node ptr should be undefined, end of tree
+		if((errorCode = leafNode.setNextNodePtr(-1015)) < 0)
 			return errorCode;
 		if((errorCode = leafNode.write(rootPid, pf)) < 0)
 			return errorCode;
@@ -84,41 +107,59 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 	RC errorCode;
 	if(level != 1){
 		//At a non-leaf level
-		if((errorCode = traverseAndInsert(key, rid, pid, sibKey, sibPid, level-1)) < 0)
-			return errorCode;
-		
 		BTNonLeafNode nonLeafNode;
 		if((errorCode = nonLeafNode.read(pid,pf)) < 0)
-			return errorCode;		
+			return errorCode;
+		PageId traversePid;
+		if((errorCode = nonLeafNode.locateChildPtr(key, traversePid)) < 0)
+			return errorCode;
+		//Recursively insert
+		if((errorCode = traverseAndInsert(key, rid, traversePid, sibKey, sibPid, level-1)) < 0)
+			return errorCode;	
 		
-		//Insertion to nonLeafNode
-		if(nonLeafNode.getKeyCount() >= MAX_LEAF_RECORDS){
-			//Nonleaf overflow
-			BTNonLeafNode siblingNode;
-			sibPid = pf.endPid();
-			if((errorCode = nonLeafNode.insertAndSplit(key, pid, siblingNode, sibKey)) < 0)
-				return errorCode;
-			if((errorCode = nonLeafNode.write(pid, pf)) < 0)
-				return errorCode;	
-			if((errorCode = siblingNode.write(sibPid, pf)) < 0)
-				return errorCode;			
-			
-			//Need to initialize a new root
-			if(pid == rootPid){
-				rootPid = pf.endPid();
-				BTNonLeafNode rootNode;
-				if((errorCode = rootNode.initializeRoot(pid, sibKey, sibPid)) < 0)
+		if(sibKey != -1 && sibPid != -1){
+			//Insertion to nonLeafNode
+			if(nonLeafNode.getKeyCount() >= MAX_LEAF_RECORDS){
+				//Nonleaf overflow
+				BTNonLeafNode siblingNode;
+				if((errorCode = nonLeafNode.insertAndSplit(sibKey, sibPid, siblingNode, sibKey)) < 0)
 					return errorCode;
-				treeHeight++;				
+				sibPid = pf.endPid();
+				if((errorCode = nonLeafNode.write(pid, pf)) < 0)
+					return errorCode;	
+				if((errorCode = siblingNode.write(sibPid, pf)) < 0)
+					return errorCode;			
+				printf("nonleaf:\n");
+				nonLeafNode.print();
+				printf("nonsibleaf:\n");
+				siblingNode.print();			
+				//Need to initialize a new root
+				if(pid == rootPid){
+					rootPid = pf.endPid();
+					BTNonLeafNode rootNode;
+					if((errorCode = rootNode.initializeRoot(pid, sibKey, sibPid)) < 0)
+						return errorCode;
+					if((errorCode = rootNode.write(rootPid, pf)) < 0)
+						return errorCode;
+					treeHeight++;	
+					printf("nonleafroot:\n");
+					rootNode.print();
+				}
+				return 0;
+			}else{
+				//No overflow
+				if((errorCode = nonLeafNode.insert(sibKey,sibPid)) < 0)
+					return errorCode;
+				if((errorCode = nonLeafNode.write(pid, pf)) < 0)
+					return errorCode;
+			
+				//Only need to add in record after split on the nonleaf node right above the leaf split. 
+				sibKey = -1;
+				sibPid = -1;
+				printf("nonleaf:\n");
+				nonLeafNode.print();
+				return 0;
 			}
-			return 0;
-		}else{
-			//No overflow
-			if((errorCode = nonLeafNode.insert(sibKey,sibPid)) < 0)
-				return errorCode;
-			if((errorCode = nonLeafNode.write(sibPid, pf)) < 0)
-				return errorCode;
-			return 0;
 		}
 	}else{
 		//At the leaf level
@@ -134,20 +175,27 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 			//Insert tuple and split
 			if((errorCode = leafNode.insertAndSplit(key, rid, siblingNode, sibKey)) < 0)
 				return errorCode;
-			if((errorCode = leafNode.setNextNodePtr(pid)) < 0)
+			if((errorCode = leafNode.setNextNodePtr(sibPid)) < 0)
 				return errorCode;
 			if((errorCode = leafNode.write(pid, pf)) < 0)
 				return errorCode;	
 			if((errorCode = siblingNode.write(sibPid, pf)) < 0)
 				return errorCode;
-			
+			printf("leaf:\n");
+			leafNode.print();
+			printf("leafsib:\n");
+			siblingNode.print();
 			//Need to initialize a new root
-			if(pid == rootPid){
+			if(pid == rootPid){				
 				rootPid = pf.endPid();
 				BTNonLeafNode rootNode;
 				if((errorCode = rootNode.initializeRoot(pid, sibKey, sibPid)) < 0)
 					return errorCode;
+				if((errorCode = rootNode.write(rootPid, pf)) < 0)
+					return errorCode;
 				treeHeight++;
+				printf("leafroot:\n");
+				rootNode.print();
 			}
 			return 0;
 		}else{
@@ -156,6 +204,8 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 				return errorCode;
 			if((errorCode = leafNode.write(pid, pf)) < 0)
 				return errorCode;
+			printf("leaf:\n");
+			leafNode.print();
 			return 0;
 		}
 	}
