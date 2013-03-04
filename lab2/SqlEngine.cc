@@ -61,6 +61,8 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 	//variables for index
 	BTreeIndex treeIndex;
 	IndexCursor indxCursor;
+	vector<int> keyVector;
+	vector<string> valueVector;
 
 	// open the table file
 	if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
@@ -83,8 +85,26 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 		treeIndex.locate(key, indxCursor);
 		//figure out how to get to the first rid
 		//use the Comparator to find out what to read out
-		//increment count
+			//save all keys and values in vectors (assume every line has a key and value)
+			//increment count
 		//print the tuple
+		switch (attr) {
+			case 1:  // SELECT key
+				for (int i=0; i < keyVector.size(); i++) {
+					fprintf(stdout, "%d\n", keyVector[i]);
+					break;
+				}
+			case 2:  // SELECT value
+				for (int i=0; i < keyVector.size(); i++) {
+					fprintf(stdout, "%s\n", valueVector[i].c_str());
+					break;
+				}
+			case 3:  // SELECT *
+				for (int i=0; i < keyVector.size(); i++) {
+					fprintf(stdout, "%d '%s'\n", keyVector[i], valueVector[i].c_str());
+					break;
+				}
+		}
 	}
 	
 	else {
