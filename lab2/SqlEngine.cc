@@ -63,6 +63,11 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 	IndexCursor indxCursor;
 	vector<int> keyVector;
 	vector<string> valueVector;
+	vector<int> notEqualVector;
+	int startingKey = 0;
+	int endingKey; //default is the ending value
+	bool geTrigger = false;
+	bool leTrigger = false;
 
 	// open the table file
 	if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
@@ -79,15 +84,87 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 	
 	//if there is an index
 	if(key == 46339 && value.compare(0,5,"index")) {
-		//define tree index's private functions
-			//incomplete
+		//define tree index's private functions and variables
+		//incomplete
+		//find out how to do value search (things are in alphabetical order, so how do you get the values)
+		//you can probably only do key search, value search will be done by going through the valueVectors
+		
+		//create the bounds for which you search for the key
+		for (unsigned i = 0; i < cond.size(); i++) {
+			if(cond[i].attr == 1) {
+			//for now, only deal with key search values. Value conditions will be dealt with later since they can't be optimized by the tree
+				switch (cond[i].comp) {
+					case SelCond::EQ:
+						startingKey = atoi(cond.value);
+						endingKey = atoi(cond.value);
+						bool geTrigger = true;
+						bool leTrigger = true;
+						break;
+					case SelCond::NE:
+						notEqualVector.push_back(atoi(cond.value));
+						break;
+					case SelCond::GT:
+						if (atoi(cond.value) > startingKey) {
+							startingKey = atoi(cond.value);
+							bool geTrigger = false;
+						}
+						break;
+					case SelCond::LT:
+						if (atoi(cond.value) < endingKey || endingKey == 1015) {
+							endingKey = atoi(cond.value);
+							bool leTrigger = false;
+						}
+						break;
+					case SelCond::GE:
+						if (atoi(cond.value) >= startingKey) {
+							startingKey = atoi(cond.value);
+							bool geTrigger = true;
+						}
+						break;
+					case SelCond::LE:
+						if (atoi(cond.value) <= endingKey || endingKey == 1015) {
+							endingKey = atoi(cond.value);
+							bool leTrigger = true;
+						}
+				}
+			}
+		}
 		//read the cond to find out the key to search
-		treeIndex.locate(key, indxCursor);
-		//figure out how to get to the first rid
-		//use the Comparator to find out what to read out
-			//save all keys and values in vectors (assume every line has a key and value)
-			//increment count
-		//print the tuple
+		treeIndex.locate(startingKey, indxCursor);
+		//get the key the starting key
+		while (key < endingKey) {
+			//find the value of the value variable for the key
+			//handling if there was a >= sign
+			if(key == startingKey && geTrigger){
+				keyVector.push_back(key);
+				valueVector.push_back(value);
+			}
+			else {
+				keyVector.push_back(key);
+				valueVector.push_back(value);
+			}
+			treeIndex.readForward(indxCursor, key, rid);
+			count++; //do I really need this
+			if (key == -1015)
+				break;
+		}
+		//handling if there was a >= sign (also, if = sign, it would skip the version in the for loop)
+		if(key == endingKey && leTrigger){
+				//find the value of the value variable for the key
+				keyVector.push_back(key);
+				valueVector.push_back(value);
+		}
+		//handle cases for value, now that the table it needs to search through is as small as it can be
+		for (unsigned i = 0; i < cond.size(); i++) {
+			if(cond[i].attr == 2) {
+				for(int j = 0; j < valueVector.size; j++){
+					if (cond[i].value == valueVector[j]) {
+						//remove teh value in both keyVector and valueVector
+					}
+				}
+			}
+		}
+		//print the tuples
 		switch (attr) {
 			case 1:  // SELECT key
 				for (int i=0; i < keyVector.size(); i++) {
