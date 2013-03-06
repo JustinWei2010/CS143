@@ -224,7 +224,8 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
   }else{
 		while (rid < rf.endRid()) {
 			// read the tuple
-			if (!ignoreValue) { //make sure this one runs first to avoid an unnecessary read
+			// the optimization doesn't read the actual value of keys and values if the index is not used (if index is used, the key is gotten anotehr way), so only apply the optimization for count(*) if index is off
+			if (!ignoreValue && attr == 4) { //make sure this one runs first to avoid an unnecessary read
 				if ((rc = rf.read(rid, key, value)) < 0) {
 				fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
 				goto exit_select;
