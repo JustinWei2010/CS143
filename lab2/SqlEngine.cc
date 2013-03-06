@@ -96,6 +96,7 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 	
   BTreeIndex tree;
   bool index = false;
+  bool ignoreValue = false;
 	
 	//Open the table file
 	if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
@@ -115,7 +116,19 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
   if(index && (rc = tree.open(table + ".idx", 'r')) < 0) {
 		index = false;
   }
-	
+
+	//optimize (ignore value) if select statement only asks for keys or count(*) while not asking for values in the where statement
+	if (attr == 1 || attr == 4) {
+		for(int i = 0; i < cond.size(); i++) {
+			if (cond[i].attr == 2)
+				break;
+			if (i == cond.size() -1)
+				ignoreValue = true;
+		}
+		if (cond.size() == 0)
+			ignoreValue = true;
+	}
+  
 	//Start index and count in the beginning
 	rid.pid = rid.sid = 0;
 	count = 0;	
@@ -130,9 +143,11 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 				goto exit_tree_select;
 			while((rc = tree.readForward(cursor, key, rid)) >= 0 && key <= high){		
 				// read the tuple
-				if ((rc = rf.read(rid, key, value)) < 0) {
-					fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
-					goto exit_tree_select;
+				if (!ignoreValue) { //make sure this one runs first to avoid an unnecessary read
+					if ((rc = rf.read(rid, key, value)) < 0) {
+						fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+						goto exit_tree_select;
+					}
 				}
 				for(int i = 0; i < cond.size(); i++){
 					switch(cond[i].attr){
@@ -209,9 +224,11 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
   }else{
 		while (rid < rf.endRid()) {
 			// read the tuple
-			if ((rc = rf.read(rid, key, value)) < 0) {
-			fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
-			goto exit_select;
+			if (!ignoreValue) { //make sure this one runs first to avoid an unnecessary read
+				if ((rc = rf.read(rid, key, value)) < 0) {
+				fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+				goto exit_select;
+				}
 			}
 
       // check the conditions on the tuple
