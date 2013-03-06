@@ -21,33 +21,9 @@ using namespace std;
 extern FILE* sqlin;
 int sqlparse(void);
 
-
 RC SqlEngine::run(FILE* commandline)
 {
   fprintf(stdout, "Bruinbase> ");
-  /*
-  RecordId rid;
-  rid.pid = 3;
-  rid.sid = 5;
-  BTreeIndex tree;
-  tree.open("test.tbl", 'w');
-  tree.insert(10, rid);
-  tree.insert(8, rid);
-  tree.insert(11, rid);
-  tree.insert(3, rid);
-  tree.insert(4, rid);
-  tree.insert(9, rid);
-  tree.insert(12, rid);
-  tree.insert(13, rid);
-  tree.insert(14, rid);
-  tree.insert(15, rid);
-  tree.insert(16, rid);
-  tree.insert(17, rid);
-  tree.insert(1, rid);
-  tree.insert(2, rid);
-  tree.insert(5, rid);
-  tree.insert(6, rid);
-  */
   
   // set the command line input and start parsing user input
   sqlin = commandline;
@@ -152,7 +128,6 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 			//Traverse values in the given range and print them out in the B+Tree
 			if((rc = tree.locate(low, cursor)) < 0)
 				goto exit_tree_select;
-				
 			while((rc = tree.readForward(cursor, key, rid)) >= 0 && key <= high){		
 				// read the tuple
 				if ((rc = rf.read(rid, key, value)) < 0) {
@@ -160,7 +135,7 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 					goto exit_tree_select;
 				}
 				for(int i = 0; i < cond.size(); i++){
-					switch(cond[i].comp){
+					switch(cond[i].attr){
 						case 1:
 							diff = key - atoi(cond[i].value);
 							break;
@@ -190,31 +165,31 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 							if (diff > 0) goto next_tree_tuple;
 							break;
 					}
-					
-					// the condition is met for the tuple. 
-					// increase matching tuple counter
-					count++;
-
-					// print the tuple 
-					switch (attr){
-						case 1:  // SELECT key
-							fprintf(stdout, "%d\n", key);
-							break;
-						case 2:  // SELECT value
-							fprintf(stdout, "%s\n", value.c_str());
-							break;
-						case 3:  // SELECT *
-							fprintf(stdout, "%d '%s'\n", key, value.c_str());
-							break;
-					}		
 				}
+				
+				// the condition is met for the tuple. 
+				// increase matching tuple counter
+				count++;
+				// print the tuple 
+				switch (attr){
+					case 1:  // SELECT key
+						fprintf(stdout, "%d\n", key);
+						break;
+					case 2:  // SELECT value
+						fprintf(stdout, "%s\n", value.c_str());
+						break;
+					case 3:  // SELECT *
+						fprintf(stdout, "%d '%s'\n", key, value.c_str());
+						break;
+					}		
+				
 				//Skip to next tuple
 				next_tree_tuple:
 				continue;
 			}
 			
 			//Error checking, Ignore end of tree error
-			if(rc < 0 && rc != -1015)
+			if(rc < 0 && rc != RC_END_OF_TREE)
 				goto exit_tree_select;
 			rc = 0;
 			
