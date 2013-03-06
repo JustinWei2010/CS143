@@ -37,7 +37,7 @@ class SqlEngine {
    * @return error code. 0 if no error
    */
   static RC run(FILE* commandline);
-
+	
   /**
    * executes a SELECT statement.
    * all conditions in conds must be ANDed together.

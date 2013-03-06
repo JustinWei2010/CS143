@@ -18,7 +18,7 @@ using namespace std;
 BTreeIndex::BTreeIndex()
 {
 	treeHeight = 0;
-    rootPid = -1;
+  rootPid = -1;
 }
 
 /*
@@ -50,7 +50,7 @@ RC BTreeIndex::open(const string& indexname, char mode)
 		memcpy(&treeHeight, buffer, sizeof(int));
 		memcpy(&rootPid, buffer + sizeof(int), sizeof(PageId));
 	}
-    return 0;
+  return 0;
 }
 
 /*
@@ -66,7 +66,7 @@ RC BTreeIndex::close()
 	memcpy(buffer + sizeof(int), &rootPid, sizeof(PageId));
 	if((errorCode = pf.write(0, buffer)) < 0)
 		return errorCode;
-    return pf.close();
+  return pf.close();
 }
 
 /*
@@ -88,7 +88,7 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 		if((errorCode = leafNode.insert(key, rid)) < 0)
 			return errorCode;
 		//Next node ptr should be undefined, end of tree
-		if((errorCode = leafNode.setNextNodePtr(-1015)) < 0)
+		if((errorCode = leafNode.setNextNodePtr(RC_END_OF_TREE)) < 0)
 			return errorCode;
 		if((errorCode = leafNode.write(rootPid, pf)) < 0)
 			return errorCode;
@@ -237,7 +237,7 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
 	
 	//Check for if tree is empty
 	if(rootPid < 0 || treeHeight < 1){
-		return -1;
+		return RC_TREE_EMPTY;
 	}
 	
 	//Traverse to leaf node
@@ -266,7 +266,7 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
         return RC_INVALID_PID;
 
 	if(cursor.eid < 0)
-		return RC_INVALID_ATTRIBUTE;
+		return RC_INVALID_EID;
 		
 	BTLeafNode leafNode;
 	RC errorCode = 0;

@@ -10,10 +10,9 @@
 #include <cstdio>
 #include <iostream>
 #include <fstream>
-#include <sstream> //for ostringstream
 #include "Bruinbase.h"
 #include "SqlEngine.h"
-#include "BTreeNode.h" //added for testing
+#include "BTreeNode.h"
 #include "BTreeIndex.h"
 
 using namespace std;
@@ -27,18 +26,29 @@ RC SqlEngine::run(FILE* commandline)
 {
   fprintf(stdout, "Bruinbase> ");
   /*
-  BTNonLeafNode node;
-  BTNonLeafNode sibling;
-  int midKey;
-  node.initializeRoot(0,4,5);
-  node.insert(7, 0);
-  node.insert(2, 0);
-  node.insert(9, 0);
-  node.insertAndSplit(10, 0, sibling, midKey);
-  node.print();
-  printf("midkey:%d\n", midKey);
-  sibling.print();
+  RecordId rid;
+  rid.pid = 3;
+  rid.sid = 5;
+  BTreeIndex tree;
+  tree.open("test.tbl", 'w');
+  tree.insert(10, rid);
+  tree.insert(8, rid);
+  tree.insert(11, rid);
+  tree.insert(3, rid);
+  tree.insert(4, rid);
+  tree.insert(9, rid);
+  tree.insert(12, rid);
+  tree.insert(13, rid);
+  tree.insert(14, rid);
+  tree.insert(15, rid);
+  tree.insert(16, rid);
+  tree.insert(17, rid);
+  tree.insert(1, rid);
+  tree.insert(2, rid);
+  tree.insert(5, rid);
+  tree.insert(6, rid);
   */
+  
   // set the command line input and start parsing user input
   sqlin = commandline;
   sqlparse();  // sqlparse() is defined in SqlParser.tab.c generated from
@@ -47,153 +57,189 @@ RC SqlEngine::run(FILE* commandline)
   return 0;
 }
 
+bool conditionRange(const vector<SelCond>& cond, int &low, int &high)
+{
+	//Set low as lowest key value and highest key value possible
+	low = 1;
+	high = 2147483647;
+	for(int i = 0; i < cond.size(); i++){
+		int num = atoi(cond[i].value);
+		if(cond[i].attr == 1){
+			switch(cond[i].comp){
+				case SelCond::EQ: 
+					if(low > num || high < num)
+						return false;
+					low = num;
+					high = num;
+					break;
+				case SelCond::NE:
+					break;
+				case SelCond::LT:
+					if(low > num)
+						return false;
+					if(high > num-1)
+						high = num-1;
+					break;
+				case SelCond::GT:
+					if(high < num)
+						return false;
+					if(low < num+1)
+						low = num+1;
+					break;
+				case SelCond::LE:
+					if(low > num)
+						return false;
+					if(high > num)
+						high = num;
+					break;
+				case SelCond::GE:
+					if(high < num)
+						return false;
+					if(low < num)
+						low = num;
+					break;
+			}
+			//If two conditions contradict then return false
+			if(low > high)
+				return false;
+		}
+	}
+	return true;
+}
+
 RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 {
-	RecordFile rf;   // RecordFile containing the table
-	RecordId   rid;  // record cursor for table scanning
-
-	RC     rc;
-	int    key;     
-	string value;
+  RecordFile rf;   // RecordFile containing the table
+  RecordId   rid;  // record cursor for table scanning
+	
+  RC     rc;
+  int    key;     
+  string value;
 	int    count;
 	int    diff;
 	
-	//variables for index
-	BTreeIndex treeIndex;
-	IndexCursor indxCursor;
-	vector<int> keyVector;
-	vector<string> valueVector;
-	vector<int> notEqualVector;
-	int startingKey = 0;
-	int endingKey; //default is the ending value
-	bool geTrigger = false;
-	bool leTrigger = false;
-
-	// open the table file
+  BTreeIndex tree;
+  bool index = false;
+	
+	//Open the table file
 	if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
 		fprintf(stderr, "Error: table %s does not exist\n", table.c_str());
 		return rc;
 	}
 	
-	//check if there is an index
-	rf.read(rf.endRid(), key, value);
-	
-	// scan the table file from the beginning
-	rid.pid = rid.sid = 0;
-	count = 0;
-	
-	//if there is an index
-	if(key == 46339 && value.compare(0,5,"index")) {
-		//define tree index's private functions and variables
-		//incomplete
-		//find out how to do value search (things are in alphabetical order, so how do you get the values)
-		//you can probably only do key search, value search will be done by going through the valueVectors
-		
-		//create the bounds for which you search for the key
-		for (unsigned i = 0; i < cond.size(); i++) {
-			if(cond[i].attr == 1) {
-			//for now, only deal with key search values. Value conditions will be dealt with later since they can't be optimized by the tree
-				switch (cond[i].comp) {
-					case SelCond::EQ:
-						startingKey = atoi(cond.value);
-						endingKey = atoi(cond.value);
-						bool geTrigger = true;
-						bool leTrigger = true;
-						break;
-					case SelCond::NE:
-						notEqualVector.push_back(atoi(cond.value));
-						break;
-					case SelCond::GT:
-						if (atoi(cond.value) > startingKey) {
-							startingKey = atoi(cond.value);
-							bool geTrigger = false;
-						}
-						break;
-					case SelCond::LT:
-						if (atoi(cond.value) < endingKey || endingKey == 1015) {
-							endingKey = atoi(cond.value);
-							bool leTrigger = false;
-						}
-						break;
-					case SelCond::GE:
-						if (atoi(cond.value) >= startingKey) {
-							startingKey = atoi(cond.value);
-							bool geTrigger = true;
-						}
-						break;
-					case SelCond::LE:
-						if (atoi(cond.value) <= endingKey || endingKey == 1015) {
-							endingKey = atoi(cond.value);
-							bool leTrigger = true;
-						}
-				}
-			}
-		}
-		//read the cond to find out the key to search
-		treeIndex.locate(startingKey, indxCursor);
-		//get the key the starting key
-		while (key < endingKey) {
-			//find the value of the value variable for the key
-			//handling if there was a >= sign
-			if(key == startingKey && geTrigger){
-				keyVector.push_back(key);
-				valueVector.push_back(value);
-			}
-			else {
-				keyVector.push_back(key);
-				valueVector.push_back(value);
-			}
-			treeIndex.readForward(indxCursor, key, rid);
-			count++; //do I really need this
-			if (key == -1015)
-				break;
-		}
-		//handling if there was a >= sign (also, if = sign, it would skip the version in the for loop)
-		if(key == endingKey && leTrigger){
-				//find the value of the value variable for the key
-				keyVector.push_back(key);
-				valueVector.push_back(value);
-		}
-		//handle cases for value, now that the table it needs to search through is as small as it can be
-		for (unsigned i = 0; i < cond.size(); i++) {
-			if(cond[i].attr == 2) {
-				for(int j = 0; j < valueVector.size; j++){
-					if (cond[i].value == valueVector[j]) {
-						//remove teh value in both keyVector and valueVector
-					}
-				}
-			}
-		}
-		//print the tuples
-		switch (attr) {
-			case 1:  // SELECT key
-				for (int i=0; i < keyVector.size(); i++) {
-					fprintf(stdout, "%d\n", keyVector[i]);
-					break;
-				}
-			case 2:  // SELECT value
-				for (int i=0; i < keyVector.size(); i++) {
-					fprintf(stdout, "%s\n", valueVector[i].c_str());
-					break;
-				}
-			case 3:  // SELECT *
-				for (int i=0; i < keyVector.size(); i++) {
-					fprintf(stdout, "%d '%s'\n", keyVector[i], valueVector[i].c_str());
-					break;
-				}
+	//Only need index if have a comparison on key, not including notequal
+	for(int i = 0; i < cond.size(); i++){
+		if(cond[i].attr == 1 && cond[i].comp != SelCond::NE){
+			index = true;
+			break;
 		}
 	}
 	
-	else {
-		// scan the table file from the beginning (w/o index)
+	//Don't need tree if index file doesnt exist
+  if(index && (rc = tree.open(table + ".idx", 'r')) < 0) {
+		index = false;
+  }
+	
+	//Start index and count in the beginning
+	rid.pid = rid.sid = 0;
+	count = 0;	
+	
+  if(index){
+		int low, high;
+		IndexCursor cursor;
+		bool status;
+		if(conditionRange(cond, low, high)){
+			//Traverse values in the given range and print them out in the B+Tree
+			if((rc = tree.locate(low, cursor)) < 0)
+				goto exit_tree_select;
+				
+			while((rc = tree.readForward(cursor, key, rid)) >= 0 && key <= high){		
+				// read the tuple
+				if ((rc = rf.read(rid, key, value)) < 0) {
+					fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+					goto exit_tree_select;
+				}
+				for(int i = 0; i < cond.size(); i++){
+					switch(cond[i].comp){
+						case 1:
+							diff = key - atoi(cond[i].value);
+							break;
+						case 2:
+							diff = strcmp(value.c_str(), cond[i].value);
+							break;
+					}
+
+					// skip the tuple if any condition is not met
+					switch (cond[i].comp){
+						case SelCond::EQ:
+							if (diff != 0) goto next_tree_tuple;
+							break;
+						case SelCond::NE:
+							if (diff == 0) goto next_tree_tuple;
+							break;
+						case SelCond::GT:
+							if (diff <= 0) goto next_tree_tuple;
+							break;
+						case SelCond::LT:
+							if (diff >= 0) goto next_tree_tuple;
+							break;
+						case SelCond::GE:
+							if (diff < 0) goto next_tree_tuple;
+							break;
+						case SelCond::LE:
+							if (diff > 0) goto next_tree_tuple;
+							break;
+					}
+					
+					// the condition is met for the tuple. 
+					// increase matching tuple counter
+					count++;
+
+					// print the tuple 
+					switch (attr){
+						case 1:  // SELECT key
+							fprintf(stdout, "%d\n", key);
+							break;
+						case 2:  // SELECT value
+							fprintf(stdout, "%s\n", value.c_str());
+							break;
+						case 3:  // SELECT *
+							fprintf(stdout, "%d '%s'\n", key, value.c_str());
+							break;
+					}		
+				}
+				//Skip to next tuple
+				next_tree_tuple:
+				continue;
+			}
+			
+			//Error checking, Ignore end of tree error
+			if(rc < 0 && rc != -1015)
+				goto exit_tree_select;
+			rc = 0;
+			
+			// print matching tuple count if "select count(*)"
+			if(attr == 4)
+				fprintf(stdout, "%d\n", count);
+				
+		}else{
+			//Condition conflict, select shouldnt print out anything
+			rc = RC_CONDITION_CONFLICT;
+			goto exit_tree_select;
+		}
+
+		exit_tree_select:
+		tree.close();
+		return rc;
+  }else{
 		while (rid < rf.endRid()) {
 			// read the tuple
 			if ((rc = rf.read(rid, key, value)) < 0) {
-				fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
-				goto exit_select;
+			fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+			goto exit_select;
 			}
 
-			// check the conditions on the tuple
+      // check the conditions on the tuple
 			for (unsigned i = 0; i < cond.size(); i++) {
 				// compute the difference between the tuple value and the condition value
 				switch (cond[i].attr) {
@@ -204,123 +250,125 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 						diff = strcmp(value.c_str(), cond[i].value);
 						break;
 				}
+
 				// skip the tuple if any condition is not met
 				switch (cond[i].comp) {
 					case SelCond::EQ:
 						if (diff != 0) goto next_tuple;
-						break;
+							break;
 					case SelCond::NE:
 						if (diff == 0) goto next_tuple;
-						break;
+							break;
 					case SelCond::GT:
 						if (diff <= 0) goto next_tuple;
-						break;
+							break;
 					case SelCond::LT:
 						if (diff >= 0) goto next_tuple;
-						break;
+							break;
 					case SelCond::GE:
 						if (diff < 0) goto next_tuple;
-						break;
+							break;
 					case SelCond::LE:
 						if (diff > 0) goto next_tuple;
-						break;
+							break;
 				}
 			}
-
+	
 			// the condition is met for the tuple. 
 			// increase matching tuple counter
 			count++;
 
 			// print the tuple 
 			switch (attr) {
-				case 1:  // SELECT key
-					fprintf(stdout, "%d\n", key);
-					break;
-				case 2:  // SELECT value
-					fprintf(stdout, "%s\n", value.c_str());
-					break;
-				case 3:  // SELECT *
-					fprintf(stdout, "%d '%s'\n", key, value.c_str());
-					break;
+			case 1:  // SELECT key
+				fprintf(stdout, "%d\n", key);
+				break;
+			case 2:  // SELECT value
+				fprintf(stdout, "%s\n", value.c_str());
+				break;
+			case 3:  // SELECT *
+				fprintf(stdout, "%d '%s'\n", key, value.c_str());
+				break;
 			}
 
 			// move to the next tuple
 			next_tuple:
 			++rid;
 		}
-	}
-	
-	// print matching tuple count if "select count(*)"
-	if (attr == 4) {
-		fprintf(stdout, "%d\n", count);
-	}
-	rc = 0;
 
-	// close the table file and return
-	exit_select:
-	rf.close();
-	return rc;
+		// print matching tuple count if "select count(*)"
+		if (attr == 4) {
+			fprintf(stdout, "%d\n", count);
+		}
+		rc = 0;
+
+		// close the table file and return
+		exit_select:
+		rf.close();
+		return rc;
+	}
 }
 
 RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 {
-  /* implement index part in later parts of lab */
-	BTreeIndex treeIndex;
 	RecordFile rf;
 	RecordId rid;
-	ostringstream convert;
-	RC rc = 0;
+	RC rc;
+	BTreeIndex tree;
 	ifstream file(loadfile.c_str());
 	
-	//open the table file, loadfile, and BTreeIndex
+	//open the table file and loadfile and BTreeIndex
+	
 	if(!file.is_open()){
 		fprintf(stderr, "Error: Could not open file %s\n", loadfile.c_str());
 		return -1;
 	}
 	
-	if ((rc = rf.open(table + ".tbl", 'w')) < 0) {
+	if ((rc = rf.open(table + ".tbl", 'w')) < 0){
 		fprintf(stderr, "Error: Error creating or writing to table %s\n", table.c_str());
 		return rc;
 	}
 	
-	if ((rc = treeIndex.open("tblname.idx",'w')) < 0) {
-		fprintf(stderr, "Error: Error creating or writing to tblname.idx");
-		return rc;
+	if(index){
+		if ((rc = tree.open(table + ".idx",'w')) < 0){
+			fprintf(stderr, "Error: Error creating or writing to tblname.idx");
+			return rc;
+		}
 	}
 	
-	//read in file
-	int key;
-	string line, value;
+	//Read in tuples
 	while(!file.eof()){
+		int key;
+		string line, value;
 		getline(file, line);
+		
 		if((rc = parseLoadLine(line, key, value)) < 0){
 			rf.close();
 			file.close();
-			return rc;
+			if(index)
+				tree.close();
 		}
-		if(key != 0 || strcmp(value.c_str(), "") != 0)
+		
+		//Ignore empty lines
+		if(key != 0 || strcmp(value.c_str(), "") != 0){
+			//Write to table
 			rf.append(key, value, rid);
-		if (index) {
-			if((rc = treeIndex.insert(key, rid)) < 0){
-				rf.close();
-				file.close();
-				return rc;
-			}
+			//Write to tree
+			if(index){
+				if((rc = tree.insert(key, rid)) < 0){
+					rf.close();
+					file.close();
+					tree.close();
+					return rc;
+				}
+			}			
 		}
 	}
-	//save treeIndex file constants before closing (Needs fixing)
-	key = 46339; //index in telophone keypad numbers
-	//adding on the tree information into the value
-	convert << rid.pid;
-	value = "index," + convert.str();
-	convert << rid.sid;
-	value += "," + convert.str();
-	rf.append(key, value, rid);
-	//close all of the files
-	treeIndex.close();
 	rf.close();
 	file.close();
-	return 0;
+	if(index)
+		tree.close();	
+  return 0;
 }
 
 RC SqlEngine::parseLoadLine(const string& line, int& key, string& value)

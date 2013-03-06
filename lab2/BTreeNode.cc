@@ -108,8 +108,8 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 {
 	//Make sure node is full
 	if(tupleCount < MAX_LEAF_RECORDS){ 
-        return -1;
-    }
+        return RC_NODE_NOT_FULL;
+  }
 	
 	//Get the entry id where the tuple should be entered 
 	int eid = 0;
@@ -179,7 +179,6 @@ RC BTLeafNode::locate(int searchKey, int& eid)
 	}
 
 	//Should only hit here if node is full and calling locate
-	eid = -1;
 	return RC_NODE_FULL;
 }
 
@@ -222,7 +221,7 @@ PageId BTLeafNode::getNextNodePtr()
 */
 RC BTLeafNode::setNextNodePtr(PageId pid)
 {
-	if(pid >= 0 || pid == -1015){
+	if(pid >= 0 || pid == RC_END_OF_TREE){
 		memcpy(buffer+PageFile::PAGE_SIZE-sizeof(int)-sizeof(PageId), &pid, sizeof(PageId));
 		return 0;
 	}
@@ -233,8 +232,6 @@ BTNonLeafNode::BTNonLeafNode()
 {
 	tupleCount = 0;
 	memset(buffer, 0, PageFile::PAGE_SIZE);
-	
-	//implement last node pointer
 }
 
 /*
@@ -370,12 +367,12 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 	char* siblingBuffer = sibling.getBufferPointer();
 	for (int i = 0; i < PageFile::PAGE_SIZE ; i++){
 		if (siblingBuffer[i] != 0)
-			return -1;
+			return RC_SIB_NOT_EMPTY;
 	}
 	
 	//Make sure node is full
 	if(tupleCount < MAX_LEAF_RECORDS){ 
-        return -1;
+        return RC_NODE_NOT_FULL;
     }
 	
 	//Insert tuple into node, node will overflow, but buffer should have enough excess space to hold the overflow
@@ -433,7 +430,7 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 RC BTNonLeafNode::locateChildPtr(int searchKey, PageId& pid)
 {
 	if(searchKey <= 0){
-		return RC_INVALID_ATTRIBUTE;
+		return RC_INVALID_KEY;
 	}
 	
 	for(int eid=0; eid<tupleCount; eid++){
