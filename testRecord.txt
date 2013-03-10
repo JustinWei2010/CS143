@@ -57,4 +57,16 @@ select count(*) from small																1
 SELECT * FROM small WHERE key > 100 AND key < 500										7
 select key from small where key > 100													3
 
+large
+select * from large where key > 2000 and value < 'K'									141 (0.040)
+select * from large where  value < 'K'													113 (0.290)
+select * from large where key > 2000 and key < 2200										19 (0.050)
+select * from large where key > 2000 and key < 2200	and value < 'K'						19 (0.040)
+select * from large where value < 'K' and value > 'B'									113 (0.270)
+select * from large where value < 'K' and key > 2200									128 (0.000)
+select value from large where value < 'K' and value > 'B'								113 (0.270)
+select count(*) from large where value < 'K' and value > 'B'							113 (0.000)
+select key from large where key > 2000 and key < 2200									6 (0.040)
+select count(*) from large where key > 2000 and key < 2200								6 (0.040)
+
 Afterward, the standard test cases were done. (all of them passed)
