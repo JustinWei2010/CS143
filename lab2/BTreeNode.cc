@@ -11,20 +11,6 @@ BTLeafNode::BTLeafNode()
 	memset(buffer, 0, PageFile::PAGE_SIZE);
 }
 
-//Testing
-void BTLeafNode::print()
-{
-	printf("numKeys: %d\n", tupleCount);
-	for(int eid = 0; eid < tupleCount; eid++){
-		int key;
-		RecordId rid;
-		readEntry(eid, key, rid);
-		printf("key: %d, page: %d, record: %d\n", key, rid.pid, rid.sid);
-	}
-	printf("next: %d\n", getNextNodePtr());
-	return;
-}
-
 /*
 * Read the content of the node from the page pid in the PageFile pf.
 * @param pid[IN] the PageId to read
@@ -286,23 +272,6 @@ void BTNonLeafNode::changeKeyCount(const int& newKeyCount)
 char* BTNonLeafNode::getBufferPointer()
 {
 	return &(buffer[0]);
-}
-
-void BTNonLeafNode::print()
-{
-	printf("numKeys: %d\n", tupleCount);
-	for(int eid = 0; eid < tupleCount; eid++){
-		int key;
-		PageId pid;
-		int offset = (keyPageComponentSize)*eid;
-		memcpy(&pid, buffer + offset, sizeof(PageId));
-		memcpy(&key, buffer + offset + sizeof(PageId), sizeof(int));
-		printf("page: %d, key: %d\n", pid, key);
-	}
-	PageId pid;
-	memcpy(&pid, buffer + keyPageComponentSize * tupleCount, sizeof(PageId)); 
-	printf("last: %d\n", pid);
-	return;
 }
 
 /*

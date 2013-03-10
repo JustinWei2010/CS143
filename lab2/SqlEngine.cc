@@ -96,7 +96,7 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 	
   BTreeIndex tree;
   bool index = false;
-  bool ignoreValue = false;
+	bool ignoreValue = false;
 	
 	//Open the table file
 	if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
@@ -117,15 +117,9 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 		index = false;
   }
 
-	//optimize (ignore value) if select statement only asks for keys or count(*) while not asking for values in the where statement
-	if (attr == 1 || attr == 4) {
-		ignoreValue = true; //automatically true if no conditions are there
-		for(int i = 0; i < cond.size(); i++) {
-			if (cond[i].attr == 2) {
-				ignoreValue = false;
-				break;
-			}
-		}
+	//optimize ignore read if count is asked for
+	if(attr == 4){
+		ignoreValue = true;
 	}
   
 	//Start index and count in the beginning
@@ -142,64 +136,67 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 				goto exit_tree_select;
 			while((rc = tree.readForward(cursor, key, rid)) >= 0 && key <= high){		
 				// read the tuple
-				if (!ignoreValue) { //make sure this one runs first to avoid an unnecessary read
+				if (ignoreValue){
+					count++;
+					continue;
+				}else{
 					if ((rc = rf.read(rid, key, value)) < 0) {
 						fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
 						goto exit_tree_select;
 					}
-				}
-				for(int i = 0; i < cond.size(); i++){
-					switch(cond[i].attr){
-						case 1:
-							diff = key - atoi(cond[i].value);
-							break;
-						case 2:
-							diff = strcmp(value.c_str(), cond[i].value);
-							break;
-					}
+					for(int i = 0; i < cond.size(); i++){
+						switch(cond[i].attr){
+							case 1:
+								diff = key - atoi(cond[i].value);
+								break;
+							case 2:
+								diff = strcmp(value.c_str(), cond[i].value);
+								break;
+						}
 
-					// skip the tuple if any condition is not met
-					switch (cond[i].comp){
-						case SelCond::EQ:
-							if (diff != 0) goto next_tree_tuple;
-							break;
-						case SelCond::NE:
-							if (diff == 0) goto next_tree_tuple;
-							break;
-						case SelCond::GT:
-							if (diff <= 0) goto next_tree_tuple;
-							break;
-						case SelCond::LT:
-							if (diff >= 0) goto next_tree_tuple;
-							break;
-						case SelCond::GE:
-							if (diff < 0) goto next_tree_tuple;
-							break;
-						case SelCond::LE:
-							if (diff > 0) goto next_tree_tuple;
-							break;
+						// skip the tuple if any condition is not met
+						switch (cond[i].comp){
+							case SelCond::EQ:
+								if (diff != 0) goto next_tree_tuple;
+								break;
+							case SelCond::NE:
+								if (diff == 0) goto next_tree_tuple;
+								break;
+							case SelCond::GT:
+								if (diff <= 0) goto next_tree_tuple;
+								break;
+							case SelCond::LT:
+								if (diff >= 0) goto next_tree_tuple;
+								break;
+							case SelCond::GE:
+								if (diff < 0) goto next_tree_tuple;
+								break;
+							case SelCond::LE:
+								if (diff > 0) goto next_tree_tuple;
+								break;
+						}
 					}
+				
+					// the condition is met for the tuple. 
+					// increase matching tuple counter
+					count++;
+					// print the tuple 
+					switch (attr){
+						case 1:  // SELECT key
+							fprintf(stdout, "%d\n", key);
+							break;
+						case 2:  // SELECT value
+							fprintf(stdout, "%s\n", value.c_str());
+							break;
+						case 3:  // SELECT *
+							fprintf(stdout, "%d '%s'\n", key, value.c_str());
+							break;
+						}		
+				
+					//Skip to next tuple
+					next_tree_tuple:
+					continue;
 				}
-				
-				// the condition is met for the tuple. 
-				// increase matching tuple counter
-				count++;
-				// print the tuple 
-				switch (attr){
-					case 1:  // SELECT key
-						fprintf(stdout, "%d\n", key);
-						break;
-					case 2:  // SELECT value
-						fprintf(stdout, "%s\n", value.c_str());
-						break;
-					case 3:  // SELECT *
-						fprintf(stdout, "%d '%s'\n", key, value.c_str());
-						break;
-					}		
-				
-				//Skip to next tuple
-				next_tree_tuple:
-				continue;
 			}
 			
 			//Error checking, Ignore end of tree error
@@ -223,12 +220,9 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
   }else{
 		while (rid < rf.endRid()) {
 			// read the tuple
-			// the optimization doesn't read the actual value of keys and values if the index is not used (if index is used, the key is gotten anotehr way), so only apply the optimization for count(*) if index is off
-			if (!ignoreValue || attr != 4) { //make sure this one runs first to avoid an unnecessary read
-				if ((rc = rf.read(rid, key, value)) < 0) {
+			if ((rc = rf.read(rid, key, value)) < 0) {
 				fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
 				goto exit_select;
-				}
 			}
 
       // check the conditions on the tuple

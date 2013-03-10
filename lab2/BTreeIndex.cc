@@ -92,7 +92,6 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 			return errorCode;
 		if((errorCode = leafNode.write(rootPid, pf)) < 0)
 			return errorCode;
-		leafNode.print();
 		treeHeight++;
 		return 0;
 	}else{
@@ -128,11 +127,7 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 				if((errorCode = nonLeafNode.write(pid, pf)) < 0)
 					return errorCode;	
 				if((errorCode = siblingNode.write(sibPid, pf)) < 0)
-					return errorCode;			
-				printf("nonleaf:\n");
-				nonLeafNode.print();
-				printf("nonsibleaf:\n");
-				siblingNode.print();			
+					return errorCode;					
 				//Need to initialize a new root
 				if(pid == rootPid){
 					rootPid = pf.endPid();
@@ -142,8 +137,6 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 					if((errorCode = rootNode.write(rootPid, pf)) < 0)
 						return errorCode;
 					treeHeight++;	
-					printf("nonleafroot:\n");
-					rootNode.print();
 				}
 				return 0;
 			}else{
@@ -156,8 +149,6 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 				//Only need to add in record after split on the nonleaf node right above the leaf split. 
 				sibKey = -1;
 				sibPid = -1;
-				printf("nonleaf:\n");
-				nonLeafNode.print();
 				return 0;
 			}
 		}
@@ -181,10 +172,6 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 				return errorCode;	
 			if((errorCode = siblingNode.write(sibPid, pf)) < 0)
 				return errorCode;
-			printf("leaf:\n");
-			leafNode.print();
-			printf("leafsib:\n");
-			siblingNode.print();
 			//Need to initialize a new root
 			if(pid == rootPid){				
 				rootPid = pf.endPid();
@@ -194,8 +181,6 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 				if((errorCode = rootNode.write(rootPid, pf)) < 0)
 					return errorCode;
 				treeHeight++;
-				printf("leafroot:\n");
-				rootNode.print();
 			}
 			return 0;
 		}else{
@@ -204,8 +189,6 @@ RC BTreeIndex::traverseAndInsert(int key, const RecordId rid, PageId pid, int &s
 				return errorCode;
 			if((errorCode = leafNode.write(pid, pf)) < 0)
 				return errorCode;
-			printf("leaf:\n");
-			leafNode.print();
 			return 0;
 		}
 	}
