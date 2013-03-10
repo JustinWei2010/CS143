@@ -1,0 +1,58 @@
+Command																					Pages Read
+
+xsmall (used to test all input types)
+
+simplest form
+select * from xsmall																	1
+select key from xsmall																	1
+select value from xsmall																1
+select count(*) from xsmall																1
+
+Check if all key comparison work (since count(*) is executed in a different part of the code in comparison to the rest, they are tested separately)
+select * from xsmall where key > 2														3
+select * from xsmall where key >= 2														3
+select * from xsmall where key < 2000													3
+select * from xsmall where key <= 2244													3
+select * from xsmall where key <> 2244													1
+select * from xsmall where key = 2244													3
+select count(*) from xsmall where key > 2												3
+select count(*) from xsmall where key >= 2												3
+select count(*) from xsmall where key < 2												3
+select count(*) from xsmall where key <= 2												3
+select count(*) from xsmall where key <> 2												1
+select count(*) from xsmall where key = 2												3
+
+Check if all value comparison work (since count(*) is executed in a different part of the code in comparison to the rest, they are tested separately)
+select * from xsmall where value > 'F'													1
+select * from xsmall where value >= 'Baby Take a Bow'									1	
+select * from xsmall where value < 'F'													1
+select * from xsmall where value <= 'Baby Take a Bow'									1				
+select * from xsmall where value <> 'Baby Take a Bow'									1				
+select * from xsmall where value = 'Baby Take a Bow'									1
+select count(*) from xsmall where value > 'Baby Take a Bow'								1
+select count(*) from xsmall where value >= 'Baby Take a Bow'							1
+select count(*) from xsmall where value < 'Baby Take a Bow'								1
+select count(*) from xsmall where value <= 'Baby Take a Bow'							1
+select count(*) from xsmall where value <> 'Baby Take a Bow'							1
+select count(*) from xsmall where value = 'Baby Take a Bow'								1
+
+Combination Checks
+select key from xsmall where key > 1													3
+select key from xsmall where key > 1 and value = 'King Creole'							3
+select key from xsmall where key > 1 and value <> 'King Creole'							3
+select key from xsmall where key > 2500 and value = 'King Creole'						3
+select * from xsmall where key > 100 and key < 2500										3
+select * from xsmall where key > 2600 and key < 2500									2
+select * from xsmall where value >  'K' and key > 2										3
+select value from xsmall where value > 'K' and key > 3000								3
+select count(*) from xsmall where value >  'K' and key > 2								3
+
+small (some basic checks on a larger tree)
+select * from small																		6
+select key from small																	6
+select value from small																	6
+select count(*) from small																1
+SELECT * FROM small WHERE key > 100 AND key < 500										7
+select key from small where key > 100													3
+
+Afterward, the standard test cases were done. (all of them passed)
