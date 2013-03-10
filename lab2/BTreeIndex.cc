@@ -262,6 +262,9 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
+	if(cursor.pid == RC_END_OF_TREE)
+			return RC_END_OF_TREE;
+
     if(cursor.pid < 0)
         return RC_INVALID_PID;
 

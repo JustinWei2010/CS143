@@ -119,14 +119,13 @@ RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 
 	//optimize (ignore value) if select statement only asks for keys or count(*) while not asking for values in the where statement
 	if (attr == 1 || attr == 4) {
+		ignoreValue = true; //automatically true if no conditions are there
 		for(int i = 0; i < cond.size(); i++) {
-			if (cond[i].attr == 2)
+			if (cond[i].attr == 2) {
+				ignoreValue = false;
 				break;
-			if (i == cond.size() -1)
-				ignoreValue = true;
+			}
 		}
-		if (cond.size() == 0)
-			ignoreValue = true;
 	}
   
 	//Start index and count in the beginning
