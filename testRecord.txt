@@ -46,6 +46,8 @@ select * from xsmall where key > 2600 and key < 2500									2
 select * from xsmall where value >  'K' and key > 2										3
 select value from xsmall where value > 'K' and key > 3000								3
 select count(*) from xsmall where value >  'K' and key > 2								3
+select * from xsmall where value >  'K' and value < 'k'									1
+select count(*) from xsmall where value >  'K' and value < 'k'							1
 
 small (some basic checks on a larger tree)
 select * from small																		6
